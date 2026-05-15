@@ -6,6 +6,13 @@ import UIKit
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   /// MethodChannel name shared with the Dart side (FullPlayer).
   private static let orientationChannelName = "yt_offline/orientation"
+  /// Shared with the Dart `ShareIntake` service.
+  private static let shareChannelName = "yt_offline/share"
+
+  /// URL captured from `application(_:open:)` before the engine attached.
+  /// Cleared on `getInitial`.
+  private var pendingShare: String?
+  private var shareChannel: FlutterMethodChannel?
 
   override func application(
     _ application: UIApplication,
@@ -13,7 +20,24 @@ import UIKit
   ) -> Bool {
     configureAudioSession()
     registerAudioObservers()
+    if let url = launchOptions?[.url] as? URL {
+      pendingShare = url.absoluteString
+    }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  override func application(
+    _ app: UIApplication,
+    open url: URL,
+    options: [UIApplication.OpenURLOptionsKey: Any] = [:]
+  ) -> Bool {
+    let value = url.absoluteString
+    // Engine may not be ready yet on a cold-from-URL launch; cache for
+    // getInitial. When live, push through the channel.
+    if shareChannel?.invokeMethod("onShare", arguments: value) == nil {
+      pendingShare = value
+    }
+    return true
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
@@ -26,6 +50,21 @@ import UIKit
     channel.setMethodCallHandler { [weak self] call, result in
       self?.handleOrientationCall(call, result: result)
     }
+
+    let share = FlutterMethodChannel(
+      name: AppDelegate.shareChannelName,
+      binaryMessenger: engineBridge.applicationRegistrar.messenger()
+    )
+    share.setMethodCallHandler { [weak self] call, result in
+      guard call.method == "getInitial" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      let v = self?.pendingShare
+      self?.pendingShare = nil
+      result(v)
+    }
+    shareChannel = share
   }
 
   // MARK: - Orientation forcing

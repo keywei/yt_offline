@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/failure.dart';
 import '../../../../core/i18n/strings.dart';
+import '../../../../core/share/share_intake.dart';
 import '../../../download/presentation/providers/download_providers.dart';
 import '../../domain/entities/video_summary.dart';
 import '../providers/search_history_provider.dart';
@@ -206,6 +207,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final s = S.of(context);
     final state = ref.watch(searchControllerProvider);
     final loadedVideos = state is SearchLoaded ? state.videos : const <VideoSummary>[];
+
+    // Pre-fill + submit whenever the OS hands us a shared URL or text.
+    ref.listen<String?>(pendingShareProvider, (prev, next) {
+      if (next == null || next.isEmpty) return;
+      _textController.text = next;
+      ref.read(pendingShareProvider.notifier).state = null;
+      _submit(next);
+    });
 
     // Tap anywhere outside the TextField (and outside other interactive
     // widgets, since they'll consume the gesture first) drops focus.

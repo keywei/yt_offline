@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/i18n/settings_providers.dart';
 import 'core/i18n/strings.dart';
 import 'core/router/app_router.dart';
+import 'core/share/share_intake.dart';
 import 'core/storage/preferences_store.dart';
 import 'features/download/presentation/providers/download_providers.dart';
 
@@ -13,6 +14,9 @@ class YtOfflineApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Eagerly construct the share-intake service so the platform channel
+    // handler is registered before the OS can deliver a cold-launch intent.
+    ref.watch(shareIntakeProvider);
     final init = ref.watch(downloadInitializerProvider);
     final prefs = ref.watch(appPreferencesProvider).valueOrNull ??
         AppPreferences.defaults;
