@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,11 +11,30 @@ import '../state/playback_state.dart';
 import 'playback_speed_sheet.dart';
 import 'sleep_timer_sheet.dart';
 
+/// Same channel name used by `AppDelegate.swift` on the iOS side.
+const _orientationChannel = MethodChannel('yt_offline/orientation');
+
 /// Briefly lock the device to the given orientations to trigger rotation,
 /// then release so the sensor can take over again. Without the release the
 /// device would stay pinned and the user couldn't rotate back manually.
+///
+/// On iOS, [SystemChrome.setPreferredOrientations] only declares *what is
+/// allowed* — it does not physically rotate. We additionally invoke a
+/// native MethodChannel that calls `requestGeometryUpdate` on iOS 16+ (or
+/// the legacy "orientation" KVC trick on older versions) to force the
+/// rotation right away.
 Future<void> _flipOrientation(List<DeviceOrientation> target) async {
   await SystemChrome.setPreferredOrientations(target);
+  if (defaultTargetPlatform == TargetPlatform.iOS) {
+    final mode = target.first == DeviceOrientation.portraitUp
+        ? 'portrait'
+        : 'landscape';
+    try {
+      await _orientationChannel.invokeMethod<void>('force', mode);
+    } catch (_) {
+      // The channel might not be wired in unit tests; ignore.
+    }
+  }
   Future.delayed(const Duration(seconds: 1), () {
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
   });
