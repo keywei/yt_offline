@@ -4,7 +4,9 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatf
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_volume_controller/flutter_volume_controller.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:screen_brightness/screen_brightness.dart';
 
 import '../../../../core/i18n/strings.dart';
 import '../providers/playback_providers.dart';
@@ -173,9 +175,22 @@ class _LandscapeLayout extends StatefulWidget {
   State<_LandscapeLayout> createState() => _LandscapeLayoutState();
 }
 
+/// Which gesture is currently mid-drag — drives the floating indicator on
+/// the right-hand `_GestureIndicator`.
+enum _ActiveGesture { brightness, volume, seek }
+
 class _LandscapeLayoutState extends State<_LandscapeLayout> {
   bool _overlayVisible = true;
   Timer? _hideTimer;
+
+  // Gesture transient state.
+  _ActiveGesture? _activeGesture;
+  double _gestureValue = 0; // 0..1 for brightness/volume
+  Duration _seekTarget = Duration.zero;
+  Duration _seekStart = Duration.zero;
+  double _brightnessStart = 0;
+  double _volumeStart = 0;
+  Timer? _indicatorHideTimer;
 
   @override
   void initState() {
@@ -186,6 +201,7 @@ class _LandscapeLayoutState extends State<_LandscapeLayout> {
   @override
   void dispose() {
     _hideTimer?.cancel();
+    _indicatorHideTimer?.cancel();
     super.dispose();
   }
 
@@ -218,6 +234,125 @@ class _LandscapeLayoutState extends State<_LandscapeLayout> {
     }
   }
 
+  // ---- Gesture handlers ----
+
+  Future<void> _onVerticalDragStart(DragStartDetails d) async {
+    final width = MediaQuery.of(context).size.width;
+    final onLeft = d.localPosition.dx < width / 2;
+    try {
+      if (onLeft) {
+        _brightnessStart = await ScreenBrightness().application;
+        setState(() {
+          _activeGesture = _ActiveGesture.brightness;
+          _gestureValue = _brightnessStart;
+        });
+      } else {
+        _volumeStart = await FlutterVolumeController.getVolume() ?? 0.5;
+        setState(() {
+          _activeGesture = _ActiveGesture.volume;
+          _gestureValue = _volumeStart;
+        });
+      }
+    } catch (_) {
+      // Platform call failed (eg. permission). Bail out — the swipe simply
+      // does nothing.
+      setState(() => _activeGesture = null);
+    }
+  }
+
+  Future<void> _onVerticalDragUpdate(DragUpdateDetails d) async {
+    final active = _activeGesture;
+    if (active == null) return;
+    if (active == _ActiveGesture.seek) return;
+    final height = MediaQuery.of(context).size.height;
+    // Negative dy = moving up (a value increase). Use total primary delta
+    // since the last update to converge on a stable final value rather than
+    // accumulate drift.
+    final delta = -d.primaryDelta! / height;
+    final next = (_gestureValue + delta).clamp(0.0, 1.0);
+    setState(() => _gestureValue = next);
+    try {
+      if (active == _ActiveGesture.brightness) {
+        await ScreenBrightness().setApplicationScreenBrightness(next);
+      } else {
+        await FlutterVolumeController.setVolume(next);
+      }
+    } catch (_) {
+      // Ignore — the next update will retry.
+    }
+  }
+
+  void _onVerticalDragEnd(DragEndDetails _) {
+    _scheduleIndicatorHide();
+  }
+
+  void _onHorizontalDragStart(DragStartDetails _) {
+    final pos = widget.state.position;
+    setState(() {
+      _activeGesture = _ActiveGesture.seek;
+      _seekStart = pos;
+      _seekTarget = pos;
+    });
+  }
+
+  void _onHorizontalDragUpdate(DragUpdateDetails d) {
+    if (_activeGesture != _ActiveGesture.seek) return;
+    final width = MediaQuery.of(context).size.width;
+    // A full-screen horizontal sweep maps to a 90-second nudge — long
+    // enough to be useful, short enough to be precise.
+    const fullSweepSeconds = 90;
+    final accumDx = d.primaryDelta!;
+    final deltaSec = (accumDx / width) * fullSweepSeconds;
+    final next = _seekTarget +
+        Duration(milliseconds: (deltaSec * 1000).round());
+    final total = widget.state.duration;
+    final clamped = next.isNegative
+        ? Duration.zero
+        : (total > Duration.zero && next > total ? total : next);
+    setState(() => _seekTarget = clamped);
+  }
+
+  Future<void> _onHorizontalDragEnd(DragEndDetails _) async {
+    if (_activeGesture != _ActiveGesture.seek) return;
+    if (_seekTarget != _seekStart) {
+      await widget.controller.seek(_seekTarget);
+    }
+    _scheduleIndicatorHide();
+  }
+
+  void _onDoubleTapDown(TapDownDetails d) {
+    final width = MediaQuery.of(context).size.width;
+    final x = d.localPosition.dx;
+    if (x < width / 3) {
+      _doubleTapSeek(-10);
+    } else if (x > width * 2 / 3) {
+      _doubleTapSeek(10);
+    }
+  }
+
+  void _doubleTapSeek(int seconds) {
+    final current = widget.state.position;
+    final total = widget.state.duration;
+    var next = current + Duration(seconds: seconds);
+    if (next.isNegative) next = Duration.zero;
+    if (total > Duration.zero && next > total) next = total;
+    widget.controller.seek(next);
+    setState(() {
+      _activeGesture = _ActiveGesture.seek;
+      _seekStart = current;
+      _seekTarget = next;
+    });
+    _scheduleIndicatorHide();
+  }
+
+  void _scheduleIndicatorHide() {
+    _indicatorHideTimer?.cancel();
+    _indicatorHideTimer = Timer(const Duration(milliseconds: 800), () {
+      if (!mounted) return;
+      setState(() => _activeGesture = null);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
@@ -228,6 +363,14 @@ class _LandscapeLayoutState extends State<_LandscapeLayout> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: _toggleOverlay,
+        onDoubleTapDown: _onDoubleTapDown,
+        onDoubleTap: () {},
+        onVerticalDragStart: _onVerticalDragStart,
+        onVerticalDragUpdate: _onVerticalDragUpdate,
+        onVerticalDragEnd: _onVerticalDragEnd,
+        onHorizontalDragStart: _onHorizontalDragStart,
+        onHorizontalDragUpdate: _onHorizontalDragUpdate,
+        onHorizontalDragEnd: _onHorizontalDragEnd,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -253,10 +396,116 @@ class _LandscapeLayoutState extends State<_LandscapeLayout> {
                 ),
               ),
             ),
+            // Floating brightness / volume / seek indicator. Only rendered
+            // while a gesture is active.
+            if (_activeGesture != null)
+              IgnorePointer(
+                child: Center(
+                  child: _GestureIndicator(
+                    gesture: _activeGesture!,
+                    value: _gestureValue,
+                    seekTarget: _seekTarget,
+                    seekStart: _seekStart,
+                  ),
+                ),
+              ),
           ],
         ),
       ),
     );
+  }
+}
+
+class _GestureIndicator extends StatelessWidget {
+  final _ActiveGesture gesture;
+  final double value;
+  final Duration seekTarget;
+  final Duration seekStart;
+  const _GestureIndicator({
+    required this.gesture,
+    required this.value,
+    required this.seekTarget,
+    required this.seekStart,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final body = switch (gesture) {
+      _ActiveGesture.brightness => _bar(
+          Icons.brightness_6,
+          (value * 100).round(),
+        ),
+      _ActiveGesture.volume => _bar(
+          value < 0.01 ? Icons.volume_off : Icons.volume_up,
+          (value * 100).round(),
+        ),
+      _ActiveGesture.seek => _seekBlock(context),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: body,
+    );
+  }
+
+  Widget _bar(IconData icon, int pct) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: 22),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 140,
+            child: LinearProgressIndicator(
+              value: value.clamp(0, 1),
+              backgroundColor: Colors.white24,
+              valueColor:
+                  const AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          ),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 32,
+            child: Text(
+              '$pct%',
+              textAlign: TextAlign.right,
+              style: const TextStyle(color: Colors.white, fontSize: 12),
+            ),
+          ),
+        ],
+      );
+
+  Widget _seekBlock(BuildContext context) {
+    final diff = seekTarget - seekStart;
+    final sign = diff.isNegative ? '−' : '+';
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          diff.isNegative ? Icons.fast_rewind : Icons.fast_forward,
+          color: Colors.white,
+          size: 22,
+        ),
+        const SizedBox(width: 12),
+        Text(
+          _fmt(seekTarget),
+          style: const TextStyle(color: Colors.white, fontSize: 16),
+        ),
+        Text(
+          '  ($sign${_fmt(Duration(milliseconds: diff.inMilliseconds.abs()))})',
+          style: const TextStyle(color: Colors.white70, fontSize: 12),
+        ),
+      ],
+    );
+  }
+
+  static String _fmt(Duration d) {
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return h > 0 ? '$h:$m:$s' : '$m:$s';
   }
 }
 
