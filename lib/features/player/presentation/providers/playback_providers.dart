@@ -9,8 +9,10 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../../../core/i18n/settings_providers.dart';
 import '../../../../core/storage/preferences_store.dart';
 import '../../../../core/storage/video_metadata.dart';
+import '../../../../core/storage/watch_history_store.dart';
 import '../../../../main.dart' show mediaSessionHandler;
 import '../../../download/presentation/providers/download_providers.dart';
+import '../../../history/presentation/providers/history_providers.dart';
 import '../../../library/presentation/providers/library_providers.dart';
 import '../state/playback_state.dart';
 
@@ -404,6 +406,25 @@ class PlaybackController extends Notifier<PlaybackState> {
     }
     // Tell the OS what's playing so the lock screen shows title + art.
     mediaSessionHandler.publishMediaItem(v);
+    unawaited(_recordHistoryStart(v));
+  }
+
+  Future<void> _recordHistoryStart(VideoMetadata v) async {
+    try {
+      await ref.read(watchHistoryStoreProvider).recordStart(
+            WatchEvent(
+              videoId: v.id,
+              title: v.title,
+              startedAt: DateTime.now(),
+              endedAt: null,
+              lastPosition: v.lastPosition ?? Duration.zero,
+              duration: v.duration,
+            ),
+          );
+      ref.read(watchHistoryProvider.notifier).refresh();
+    } catch (_) {
+      // History is best-effort — swallow disk errors.
+    }
   }
 
   Future<void> _applySubtitleStyle(AppPreferences prefs) async {
@@ -464,11 +485,27 @@ class PlaybackController extends Notifier<PlaybackState> {
       return;
     }
     _replaceCurrentInQueue(updated);
+    unawaited(
+      ref
+          .read(watchHistoryStoreProvider)
+          .updateLatest(v.id, lastPosition: pos)
+          .catchError((_) {}),
+    );
   }
 
   void _onTrackCompleted() {
     final v = state.current;
     if (v != null) {
+      unawaited(
+        ref
+            .read(watchHistoryStoreProvider)
+            .updateLatest(
+              v.id,
+              lastPosition: v.duration,
+              endedAt: DateTime.now(),
+            )
+            .catchError((_) {}),
+      );
       final cleared = v.copyWith(lastPosition: null, lastPositionAt: null);
       unawaited(
         ref.read(videoMetadataStoreProvider).save(cleared).catchError((_) {}),

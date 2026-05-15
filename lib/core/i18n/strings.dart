@@ -228,6 +228,29 @@ class S {
         '將會永久刪除 $n 部影片，共 $size。',
       );
 
+  // ---- Watch history ----
+  String get historySectionTitle => _pick('History', '紀錄');
+  String get historyTitle => _pick('Watch history', '觀看紀錄');
+  String get historyEmpty =>
+      _pick('No watch history yet', '尚無觀看紀錄');
+  String get historyClearTitle =>
+      _pick('Clear watch history?', '清除觀看紀錄？');
+  String get historyClearBody => _pick(
+        'Removes every recorded play. Does not delete videos.',
+        '會移除所有紀錄，但不會刪除影片。',
+      );
+  String historyPlayedUpTo(String pos, String total) =>
+      _pick('Played up to $pos of $total', '已播放 $pos / $total');
+  String get historyVideoMissing =>
+      _pick('Video no longer in library', '影片已不在媒體庫中');
+  String get relTimeJustNow => _pick('Just now', '剛剛');
+  String relTimeMinutesAgo(int n) =>
+      _pick('$n minute${n == 1 ? '' : 's'} ago', '$n 分鐘前');
+  String relTimeHoursAgo(int n) =>
+      _pick('$n hour${n == 1 ? '' : 's'} ago', '$n 小時前');
+  String relTimeDaysAgo(int n) =>
+      _pick('$n day${n == 1 ? '' : 's'} ago', '$n 天前');
+
   // ---- Misc ----
   String get loading => _pick('Loading…', '載入中…');
 }
