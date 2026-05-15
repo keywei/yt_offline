@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/failure.dart';
+import '../../../../core/i18n/strings.dart';
 import '../../../download/presentation/providers/download_providers.dart';
 import '../../domain/entities/video_summary.dart';
 import '../providers/search_history_provider.dart';
@@ -104,17 +105,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       category: category,
     );
     if (!mounted) return;
+    final s = S.of(context);
     result.when(
       ok: (_) {},
       err: (f) {
         final messenger = ScaffoldMessenger.of(context)..clearSnackBars();
         if (f is AlreadyDownloadedFailure) {
           messenger.showSnackBar(SnackBar(
-            content: Text('"${v.title}" is already in your library'),
+            content: Text(s.alreadyInLibrary(v.title)),
           ));
         } else {
           messenger.showSnackBar(
-            SnackBar(content: Text('Failed: ${f.message}')),
+            SnackBar(content: Text(s.failed(f.message))),
           );
         }
       },
@@ -156,13 +158,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       );
     }
     if (duplicates > 0) {
+      final s = S.of(context);
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(SnackBar(
           content: Text(
             duplicates == selected.length
-                ? 'All $duplicates already in library'
-                : '$queued queued • $duplicates already in library',
+                ? s.allAlreadyInLibrary(duplicates)
+                : s.batchSummary(queued, duplicates),
           ),
         ));
     }
@@ -170,6 +173,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   void _showPreparing(String what, String category) {
+    final s = S.of(context);
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
       ..showSnackBar(
@@ -185,7 +189,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Preparing "$what" → $category',
+                  s.preparingItem(what, category),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -198,6 +202,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     final state = ref.watch(searchControllerProvider);
     final loadedVideos = state is SearchLoaded ? state.videos : const <VideoSummary>[];
 
@@ -213,12 +218,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 icon: const Icon(Icons.close),
                 onPressed: _exitSelection,
               ),
-              title: Text('${_selected.length} selected'),
+              title: Text(s.selectedN(_selected.length)),
               actions: [
                 TextButton.icon(
                   onPressed: () => _enqueueSelected(loadedVideos),
                   icon: const Icon(Icons.download),
-                  label: const Text('Download'),
+                  label: Text(s.download),
                 ),
               ],
             )
@@ -229,7 +234,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 textInputAction: TextInputAction.search,
                 onSubmitted: _submit,
                 decoration: InputDecoration(
-                  hintText: 'Search YouTube',
+                  hintText: s.searchYouTube,
                   border: InputBorder.none,
                   suffixIcon: _textController.text.isEmpty
                       ? null
@@ -255,10 +260,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               },
             )
           : switch (state) {
-              SearchInitial() => const Center(
+              SearchInitial() => Center(
                   child: Text(
-                    'Tap the search box to start',
-                    style: TextStyle(color: Colors.black87, fontSize: 16),
+                    s.searchInitialHint,
+                    style: const TextStyle(color: Colors.black87, fontSize: 16),
                   ),
                 ),
               SearchLoading() =>
@@ -267,7 +272,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   child: Text(message, style: const TextStyle(fontSize: 16)),
                 ),
               SearchLoaded(videos: final v) when v.isEmpty =>
-                const Center(child: Text('No results')),
+                Center(child: Text(s.searchNoResults)),
               SearchLoaded() => _ResultList(
                   state: state,
                   scrollController: _scrollController,
@@ -345,18 +350,19 @@ class _HistoryView extends ConsumerWidget {
             ? all
             : all.where((q) => q.toLowerCase().contains(f)).toList();
 
+        final s = S.of(context);
         if (all.isEmpty) {
-          return const Center(
+          return Center(
             child: Text(
-              'Type and press search',
-              style: TextStyle(color: Colors.black87, fontSize: 16),
+              s.searchInitialHint,
+              style: const TextStyle(color: Colors.black87, fontSize: 16),
             ),
           );
         }
         if (visible.isEmpty) {
           return Center(
             child: Text(
-              'No history matches "$filter"',
+              s.noHistoryMatch(filter),
               style: const TextStyle(color: Colors.black54),
             ),
           );
@@ -371,7 +377,10 @@ class _HistoryView extends ConsumerWidget {
                 child: Row(
                   children: [
                     Text(
-                      'Recent (${visible.length}${f.isEmpty ? '' : '/${all.length}'})',
+                      s.recentHeader(
+                        visible.length,
+                        f.isEmpty ? null : all.length,
+                      ),
                       style: Theme.of(context).textTheme.labelLarge,
                     ),
                     const Spacer(),
@@ -379,7 +388,7 @@ class _HistoryView extends ConsumerWidget {
                       onPressed: () =>
                           ref.read(searchHistoryProvider.notifier).clear(),
                       icon: const Icon(Icons.delete_sweep, size: 18),
-                      label: const Text('Clear all'),
+                      label: Text(s.clearAll),
                     ),
                   ],
                 ),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 
+import '../../../../core/i18n/strings.dart';
 import '../../../../core/storage/video_metadata.dart';
 import '../../../download/domain/entities/download_job.dart';
 import '../../../download/domain/entities/download_status.dart';
@@ -104,12 +105,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           // no videos at all (looks cleaner on first launch).
           final hasAnything =
               videos.isNotEmpty || activeJobs.isNotEmpty || known.isNotEmpty;
+          final s = S.of(context);
           if (!hasAnything) {
-            return const Center(
+            return Center(
               child: Text(
-                'Nothing downloaded yet.\nTap a video on Search to download.',
+                s.libraryEmpty,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.black87),
+                style: const TextStyle(color: Colors.black87),
               ),
             );
           }
@@ -120,7 +122,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             children: [
               if (activeJobs.isNotEmpty) ...[
                 _SectionHeader(
-                  text: 'In progress (${activeJobs.length})',
+                  text: s.inProgressHeader(activeJobs.length),
                   collapsed: inProgressCollapsed,
                   onTap: () => _toggleCollapsed(_kInProgressKey),
                 ),
@@ -203,16 +205,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   PreferredSizeWidget _buildAppBar() {
+    final s = S.of(context);
     if (_selectionMode) {
       return AppBar(
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: _exitSelection,
         ),
-        title: Text('${_selected.length} selected'),
+        title: Text(s.selectedN(_selected.length)),
         actions: [
           IconButton(
-            tooltip: 'Move to category',
+            tooltip: s.moveToCategory,
             icon: const Icon(Icons.drive_file_move_outline),
             onPressed: _batchMove,
           ),
@@ -220,20 +223,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       );
     }
     return AppBar(
-      title: const Text('Library'),
+      title: Text(s.tabLibrary),
       actions: [
         IconButton(
-          tooltip: 'New category',
+          tooltip: s.newCategory,
           icon: const Icon(Icons.create_new_folder_outlined),
           onPressed: _addCategory,
         ),
         IconButton(
-          tooltip: 'Collapse / expand all',
+          tooltip: s.collapseExpandAll,
           icon: const Icon(Icons.unfold_less),
           onPressed: _toggleAllCollapsed,
         ),
         IconButton(
-          tooltip: 'Refresh',
+          tooltip: s.refresh,
           icon: const Icon(Icons.refresh),
           onPressed: () => ref.invalidate(libraryListProvider),
         ),
@@ -331,7 +334,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
               icon: Icons.delete,
-              label: 'Delete',
+              label: S.of(context).delete,
             ),
           ],
         ),
@@ -406,13 +409,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   // ---- Category CRUD ----
 
   Future<void> _addCategory() async {
-    final name = await _showNameDialog(title: 'New category');
+    final s = S.of(context);
+    final name = await _showNameDialog(title: s.newCategory);
     if (name == null || name.isEmpty) return;
     await ref.read(libraryRepositoryProvider).addCategory(name);
     ref.invalidate(libraryListProvider);
   }
 
   void _showCategoryMenu(String category) {
+    final s = S.of(context);
     showModalBottomSheet<void>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -421,7 +426,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.edit_outlined),
-              title: const Text('Rename category'),
+              title: Text(s.renameCategory),
               onTap: () {
                 Navigator.of(ctx).pop();
                 _renameCategory(category);
@@ -429,9 +434,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.delete_outline, color: Colors.red),
-              title: const Text('Delete category',
-                  style: TextStyle(color: Colors.red)),
-              subtitle: const Text('Videos move to Uncategorized'),
+              title: Text(
+                s.deleteCategory,
+                style: const TextStyle(color: Colors.red),
+              ),
+              subtitle: Text(s.videosMoveToUncategorised),
               onTap: () {
                 Navigator.of(ctx).pop();
                 _deleteCategory(category);
@@ -444,8 +451,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   Future<void> _renameCategory(String oldName) async {
+    final s = S.of(context);
     final newName = await _showNameDialog(
-      title: 'Rename "$oldName"',
+      title: s.renameOf(oldName),
       initial: oldName,
     );
     if (newName == null || newName.isEmpty || newName == oldName) return;
@@ -456,20 +464,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   Future<void> _deleteCategory(String name) async {
+    final s = S.of(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Delete category "$name"?'),
-        content: const Text(
-            'All videos in this category will move to Uncategorized.'),
+        title: Text(s.deleteCategoryConfirm(name)),
+        content: Text(s.deleteCategoryBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: Text(s.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
+            child: Text(s.delete),
           ),
         ],
       ),
@@ -484,6 +492,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     required String title,
     String initial = '',
   }) {
+    final s = S.of(context);
     final controller = TextEditingController(text: initial);
     return showDialog<String>(
       context: context,
@@ -493,13 +502,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           controller: controller,
           autofocus: true,
           textInputAction: TextInputAction.done,
-          decoration: const InputDecoration(labelText: 'Name'),
+          decoration: InputDecoration(labelText: s.name),
           onSubmitted: (v) => Navigator.of(ctx).pop(v.trim()),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
+            child: Text(s.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
@@ -550,7 +559,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
               child: Text(
-                'Move ${_selected.length} videos to…',
+                S.of(ctx).moveNVideosTo(_selected.length),
                 style: Theme.of(ctx).textTheme.titleMedium,
               ),
             ),
@@ -741,8 +750,9 @@ class _ActiveJobTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     final theme = Theme.of(context);
-    final actions = _actionsFor(job.status);
+    final actions = _actionsFor(s, job.status);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
@@ -775,7 +785,7 @@ class _ActiveJobTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${job.category} • ${_statusLabel(job.status)}'
+                  '${job.category} • ${_statusLabel(s, job.status)}'
                   '${job.status == DownloadStatus.running ? ' ${(job.progress * 100).toStringAsFixed(0)}%' : ''}',
                   style: theme.textTheme.bodySmall,
                 ),
@@ -801,7 +811,7 @@ class _ActiveJobTile extends StatelessWidget {
     );
   }
 
-  List<Widget> _actionsFor(DownloadStatus s) {
+  List<Widget> _actionsFor(S s, DownloadStatus status) {
     Widget btn(IconData icon, String label, VoidCallback onTap) =>
         TextButton.icon(
           style: TextButton.styleFrom(
@@ -814,32 +824,32 @@ class _ActiveJobTile extends StatelessWidget {
           onPressed: onTap,
         );
 
-    return switch (s) {
-      DownloadStatus.preparing => [btn(Icons.close, 'Cancel', onCancel)],
+    return switch (status) {
+      DownloadStatus.preparing => [btn(Icons.close, s.cancel, onCancel)],
       DownloadStatus.queued || DownloadStatus.running => [
-          btn(Icons.pause, 'Pause', onPause),
-          btn(Icons.close, 'Cancel', onCancel),
+          btn(Icons.pause, s.pause, onPause),
+          btn(Icons.close, s.cancel, onCancel),
         ],
       DownloadStatus.paused => [
-          btn(Icons.play_arrow, 'Resume', onResume),
-          btn(Icons.close, 'Cancel', onCancel),
+          btn(Icons.play_arrow, s.resume, onResume),
+          btn(Icons.close, s.cancel, onCancel),
         ],
       DownloadStatus.failed || DownloadStatus.canceled => [
-          btn(Icons.refresh, 'Retry', onRetry),
-          btn(Icons.clear, 'Dismiss', onDismiss),
+          btn(Icons.refresh, s.retry, onRetry),
+          btn(Icons.clear, s.dismiss, onDismiss),
         ],
       DownloadStatus.complete => const [],
     };
   }
 
-  String _statusLabel(DownloadStatus s) => switch (s) {
-        DownloadStatus.preparing => 'Resolving stream…',
-        DownloadStatus.queued => 'Queued',
-        DownloadStatus.running => 'Downloading',
-        DownloadStatus.paused => 'Paused',
-        DownloadStatus.complete => 'Complete',
-        DownloadStatus.failed => 'Failed',
-        DownloadStatus.canceled => 'Canceled',
+  String _statusLabel(S s, DownloadStatus status) => switch (status) {
+        DownloadStatus.preparing => s.statusPreparing,
+        DownloadStatus.queued => s.statusQueued,
+        DownloadStatus.running => s.statusRunning,
+        DownloadStatus.paused => s.statusPaused,
+        DownloadStatus.complete => s.statusComplete,
+        DownloadStatus.failed => s.statusFailed,
+        DownloadStatus.canceled => s.statusCanceled,
       };
 }
 

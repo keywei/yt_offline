@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/i18n/strings.dart';
 import '../providers/playback_providers.dart';
 import '../state/now_playing_provider.dart';
 
@@ -100,7 +101,7 @@ class MiniPlayerBar extends ConsumerWidget {
                   onPressed: controller.next,
                 ),
                 IconButton(
-                  tooltip: 'Stop',
+                  tooltip: S.of(context).stop,
                   icon: const Icon(Icons.close),
                   onPressed: controller.stop,
                 ),

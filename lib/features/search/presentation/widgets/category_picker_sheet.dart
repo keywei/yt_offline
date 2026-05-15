@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/i18n/strings.dart';
 import '../../../../core/storage/video_metadata.dart';
 import '../../../library/presentation/providers/library_providers.dart';
 
@@ -40,6 +41,7 @@ class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     final known = ref.watch(knownCategoriesProvider);
     final categories = known.maybeWhen(
       data: (list) => list,
@@ -59,7 +61,7 @@ class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
               child: Text(
-                'Download into category',
+                s.downloadIntoCategory,
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
@@ -70,7 +72,7 @@ class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _submitNew(),
                 decoration: InputDecoration(
-                  hintText: 'New category name',
+                  hintText: s.newCategoryHint,
                   border: const OutlineInputBorder(),
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.add),
@@ -87,7 +89,7 @@ class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
                 children: [
                   ListTile(
                     leading: const Icon(Icons.inbox_outlined),
-                    title: const Text(VideoMetadata.defaultCategory),
+                    title: Text(s.defaultCategory),
                     onTap: () => Navigator.of(context)
                         .pop(VideoMetadata.defaultCategory),
                   ),

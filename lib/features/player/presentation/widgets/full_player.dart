@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
+import '../../../../core/i18n/strings.dart';
 import '../providers/playback_providers.dart';
 import '../state/playback_state.dart';
 import 'playback_speed_sheet.dart';
@@ -134,7 +135,7 @@ class _PortraitLayout extends StatelessWidget {
                     right: 4,
                     bottom: 4,
                     child: IconButton(
-                      tooltip: 'Fullscreen',
+                      tooltip: S.of(context).fullscreen,
                       icon: const Icon(
                         Icons.fullscreen,
                         color: Colors.white,
@@ -366,7 +367,7 @@ class _LandscapeOverlay extends StatelessWidget {
                   ),
                   const Spacer(),
                   IconButton(
-                    tooltip: 'Exit fullscreen',
+                    tooltip: S.of(context).exitFullscreen,
                     icon: const Icon(
                       Icons.fullscreen_exit,
                       color: Colors.white,
@@ -418,7 +419,7 @@ class _TopBar extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            tooltip: 'Collapse',
+            tooltip: S.of(context).collapse,
             icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white),
             onPressed: onCollapse,
           ),
@@ -482,6 +483,7 @@ class _Controls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Column(
@@ -491,7 +493,7 @@ class _Controls extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               IconButton(
-                tooltip: 'Shuffle',
+                tooltip: s.shuffle,
                 icon: Icon(
                   Icons.shuffle,
                   color: state.shuffle ? Colors.amber : Colors.white70,
@@ -500,13 +502,13 @@ class _Controls extends StatelessWidget {
               ),
               IconButton(
                 iconSize: 36,
-                tooltip: 'Previous',
+                tooltip: s.previous,
                 icon: const Icon(Icons.skip_previous, color: Colors.white),
                 onPressed: controller.previous,
               ),
               IconButton(
                 iconSize: 56,
-                tooltip: state.isPlaying ? 'Pause' : 'Play',
+                tooltip: state.isPlaying ? s.pause : s.play,
                 icon: Icon(
                   state.isPlaying ? Icons.pause_circle : Icons.play_circle,
                   color: Colors.white,
@@ -515,12 +517,12 @@ class _Controls extends StatelessWidget {
               ),
               IconButton(
                 iconSize: 36,
-                tooltip: 'Next',
+                tooltip: s.next,
                 icon: const Icon(Icons.skip_next, color: Colors.white),
                 onPressed: controller.next,
               ),
               IconButton(
-                tooltip: 'Loop: ${state.loop.name}',
+                tooltip: s.loopMode(state.loop.name),
                 icon: Icon(
                   switch (state.loop) {
                     LoopMode.off => Icons.repeat,
@@ -582,11 +584,12 @@ class _SleepTimerButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     final active = state.hasSleepTimer;
     final label = state.sleepAtEndOfTrack
-        ? 'End of track'
+        ? s.endOfTrack
         : state.sleepRemaining == null
-            ? 'Sleep'
+            ? s.sleep
             : _formatRemaining(state.sleepRemaining!);
     return TextButton.icon(
       onPressed: () => SleepTimerSheet.show(context),

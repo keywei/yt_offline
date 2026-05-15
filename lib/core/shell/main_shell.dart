@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/player/presentation/widgets/mini_player_bar.dart';
 import '../../features/player/presentation/widgets/now_playing_shell.dart';
+import '../i18n/strings.dart';
 
 /// Hosts the bottom nav. Children are the per-tab navigators that
 /// `StatefulShellRoute.indexedStack` builds for us. Wrapped by
@@ -14,6 +15,7 @@ class MainShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     return NowPlayingShell(
       child: Scaffold(
         body: navigationShell,
@@ -27,20 +29,20 @@ class MainShell extends StatelessWidget {
                 i,
                 initialLocation: i == navigationShell.currentIndex,
               ),
-              destinations: const [
+              destinations: [
                 NavigationDestination(
-                  icon: Icon(Icons.search),
-                  label: 'Search',
+                  icon: const Icon(Icons.search),
+                  label: s.tabSearch,
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.video_library_outlined),
-                  selectedIcon: Icon(Icons.video_library),
-                  label: 'Library',
+                  icon: const Icon(Icons.video_library_outlined),
+                  selectedIcon: const Icon(Icons.video_library),
+                  label: s.tabLibrary,
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.settings_outlined),
-                  selectedIcon: Icon(Icons.settings),
-                  label: 'Settings',
+                  icon: const Icon(Icons.settings_outlined),
+                  selectedIcon: const Icon(Icons.settings),
+                  label: s.tabSettings,
                 ),
               ],
             ),

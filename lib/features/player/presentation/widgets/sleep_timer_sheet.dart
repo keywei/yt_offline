@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/i18n/strings.dart';
 import '../providers/playback_providers.dart';
 
 /// Bottom sheet that lets the user pick a sleep-timer preset.
@@ -37,6 +38,7 @@ class SleepTimerSheet extends ConsumerWidget {
       );
     }
 
+    final s = S.of(context);
     return SafeArea(
       top: false,
       child: Column(
@@ -45,19 +47,19 @@ class SleepTimerSheet extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             child: Text(
-              'Sleep timer',
+              s.sleepTimer,
               style: Theme.of(context).textTheme.titleMedium,
             ),
           ),
           item(
             icon: Icons.timer_off_outlined,
-            label: 'Off',
+            label: s.sleepOff,
             selected: !state.hasSleepTimer,
             onTap: () => controller.setSleepTimer(null),
           ),
           item(
             icon: Icons.bedtime_outlined,
-            label: '5 minutes',
+            label: s.sleepMinutes5,
             selected: state.sleepRemaining != null &&
                 state.sleepRemaining! <= const Duration(minutes: 5),
             onTap: () =>
@@ -65,21 +67,21 @@ class SleepTimerSheet extends ConsumerWidget {
           ),
           item(
             icon: Icons.bedtime_outlined,
-            label: '15 minutes',
+            label: s.sleepMinutes15,
             selected: false,
             onTap: () =>
                 controller.setSleepTimer(const Duration(minutes: 15)),
           ),
           item(
             icon: Icons.bedtime_outlined,
-            label: '30 minutes',
+            label: s.sleepMinutes30,
             selected: false,
             onTap: () =>
                 controller.setSleepTimer(const Duration(minutes: 30)),
           ),
           item(
             icon: Icons.bedtime_outlined,
-            label: '1 hour',
+            label: s.sleepHour1,
             selected: false,
             onTap: () =>
                 controller.setSleepTimer(const Duration(hours: 1)),
@@ -87,7 +89,7 @@ class SleepTimerSheet extends ConsumerWidget {
           const Divider(height: 1),
           item(
             icon: Icons.last_page,
-            label: 'End of current track',
+            label: s.sleepEndOfTrack,
             selected: state.sleepAtEndOfTrack,
             onTap: () => controller.setSleepAtEndOfTrack(true),
           ),

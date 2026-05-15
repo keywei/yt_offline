@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/i18n/strings.dart';
 import '../providers/playback_providers.dart';
 
 class PlaybackSpeedSheet extends ConsumerWidget {
@@ -31,7 +32,7 @@ class PlaybackSpeedSheet extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             child: Text(
-              'Playback speed',
+              S.of(context).speed,
               style: Theme.of(context).textTheme.titleMedium,
             ),
           ),

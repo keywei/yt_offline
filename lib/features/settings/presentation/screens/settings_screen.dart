@@ -1,39 +1,104 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-/// Holds the user-facing settings. Currently just the app version readout;
-/// extra knobs (theme, default category, download quality, …) slot in here
-/// as new ListTile rows.
-class SettingsScreen extends StatelessWidget {
+import '../../../../core/i18n/settings_providers.dart';
+import '../../../../core/i18n/strings.dart';
+import '../../../../core/storage/preferences_store.dart';
+
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = S.of(context);
+    final prefs = ref.watch(appPreferencesProvider).valueOrNull ??
+        AppPreferences.defaults;
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: Text(s.tabSettings)),
       body: ListView(
         children: [
+          _section(context, s.language),
+          _LanguageTile(s: s, current: prefs.locale),
+          const Divider(height: 1),
+          _section(context, 'About'),
           FutureBuilder<PackageInfo>(
             future: PackageInfo.fromPlatform(),
             builder: (context, snapshot) {
               final info = snapshot.data;
               final subtitle = info == null
-                  ? 'Loading…'
+                  ? s.loading
                   : '${info.version} (build ${info.buildNumber})';
               return ListTile(
                 leading: const Icon(Icons.info_outline),
-                title: const Text('Version'),
+                title: Text(s.version),
                 subtitle: Text(subtitle),
               );
             },
           ),
-          const ListTile(
-            leading: Icon(Icons.code),
-            title: Text('Source'),
-            subtitle: Text('github.com/keywei/yt_offline'),
+          ListTile(
+            leading: const Icon(Icons.code),
+            title: Text(s.source),
+            subtitle: const Text('github.com/keywei/yt_offline'),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _section(BuildContext context, String text) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        child: Text(
+          text,
+          style: Theme.of(context).textTheme.labelLarge,
+        ),
+      );
+}
+
+class _LanguageTile extends ConsumerWidget {
+  final S s;
+  final Locale current;
+  const _LanguageTile({required this.s, required this.current});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    String label(Locale l) {
+      if (l.languageCode == 'zh') return s.languageZhTw;
+      return s.languageEnglish;
+    }
+
+    return ListTile(
+      leading: const Icon(Icons.translate),
+      title: Text(s.language),
+      subtitle: Text(label(current)),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () async {
+        final picked = await showModalBottomSheet<Locale>(
+          context: context,
+          showDragHandle: true,
+          builder: (ctx) => SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final loc in supportedLocales)
+                  ListTile(
+                    title: Text(label(loc)),
+                    trailing: loc.languageCode == current.languageCode
+                        ? const Icon(Icons.check, color: Colors.amber)
+                        : null,
+                    onTap: () => Navigator.of(ctx).pop(loc),
+                  ),
+              ],
+            ),
+          ),
+        );
+        if (picked != null) {
+          await ref
+              .read(appPreferencesProvider.notifier)
+              .setLocale(picked);
+        }
+      },
     );
   }
 }

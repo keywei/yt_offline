@@ -9,6 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   cupertino_icons: ^1.0.8
 
   # State management & DI
@@ -35,7 +37,7 @@ dependencies:
 
   # Misc
   collection: ^1.18.0
-  intl: ^0.19.0
+  intl: ^0.20.2
 
   # Player + external subtitles
   media_kit: ^1.1.11

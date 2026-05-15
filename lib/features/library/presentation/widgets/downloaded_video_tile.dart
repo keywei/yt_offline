@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/i18n/strings.dart';
 import '../../../../core/storage/video_metadata.dart';
 import 'equalizer_indicator.dart';
 
@@ -33,6 +34,7 @@ class DownloadedVideoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     final theme = Theme.of(context);
     final fileExists = File(meta.videoPath).existsSync();
     final inSelection = selected != null;
@@ -113,8 +115,8 @@ class DownloadedVideoTile extends StatelessWidget {
         Text(
           '${meta.author} • ${_fmtDuration(meta.duration)}'
           '${meta.subtitlePath != null ? ' • CC' : ''}'
-          '${meta.hasResumePoint ? ' • Resume ${_fmtDuration(meta.lastPosition!)}' : ''}'
-          '${fileExists ? '' : ' • missing file'}',
+          '${meta.hasResumePoint ? ' • ${s.resumeFrom(_fmtDuration(meta.lastPosition!))}' : ''}'
+          '${fileExists ? '' : ' • ${s.missingFile}'}',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: theme.textTheme.bodySmall,
