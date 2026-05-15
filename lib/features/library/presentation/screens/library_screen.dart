@@ -3,13 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/storage/video_metadata.dart';
 import '../../../download/domain/entities/download_job.dart';
 import '../../../download/domain/entities/download_status.dart';
 import '../../../download/presentation/providers/download_providers.dart';
 import '../../../player/presentation/providers/playback_providers.dart';
+import '../../../player/presentation/state/now_playing_provider.dart';
 import '../providers/library_providers.dart';
 import '../widgets/downloaded_video_tile.dart';
 
@@ -391,7 +391,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         .read(playbackControllerProvider.notifier)
         .playQueue(categoryQueue, idx);
     if (!mounted || wasPlaying) return;
-    unawaited(context.push('/player'));
+    // Auto-expand the now-playing overlay on the first play of a session.
+    ref.read(nowPlayingExpandedProvider.notifier).state = true;
   }
 
   // ---- Category CRUD ----

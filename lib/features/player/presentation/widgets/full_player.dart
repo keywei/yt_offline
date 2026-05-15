@@ -5,58 +5,78 @@ import 'package:media_kit_video/media_kit_video.dart';
 import '../providers/playback_providers.dart';
 import '../state/playback_state.dart';
 
-class PlayerScreen extends ConsumerWidget {
-  const PlayerScreen({super.key});
+/// The expanded "Now Playing" surface. Renders the Video widget, scrubber,
+/// transport controls and the current queue. Designed to live permanently in
+/// the widget tree (inside [NowPlayingShell]) so the Video widget is never
+/// re-mounted — that re-mount is what stalls libmpv on iOS.
+class FullPlayer extends ConsumerWidget {
+  final VoidCallback onCollapse;
+  const FullPlayer({required this.onCollapse, super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(playbackControllerProvider);
     final controller = ref.read(playbackControllerProvider.notifier);
-
     final current = state.current;
-    if (current == null) {
-      return Scaffold(
-        appBar: AppBar(),
-        body: const Center(child: Text('Nothing to play.')),
-      );
-    }
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        title: Text(
-          current.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(20),
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Text(
-              '${current.category} • ${state.index + 1} / ${state.queue.length}',
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
+    return Material(
+      color: Colors.black,
+      child: SafeArea(
+        child: Column(
+          children: [
+            _TopBar(title: current?.title, onCollapse: onCollapse),
+            if (current != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  '${current.category} • ${state.index + 1} / ${state.queue.length}',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ),
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              // pauseUponEnteringBackgroundMode is false because we want audio
+              // to keep playing when the app is sent to the background.
+              child: Video(
+                controller: controller.videoController,
+                pauseUponEnteringBackgroundMode: false,
+              ),
             ),
-          ),
+            _Scrubber(state: state, controller: controller),
+            _Controls(state: state, controller: controller),
+            Expanded(child: _Queue(state: state, controller: controller)),
+          ],
         ),
       ),
-      body: Column(
+    );
+  }
+}
+
+class _TopBar extends StatelessWidget {
+  final String? title;
+  final VoidCallback onCollapse;
+  const _TopBar({required this.title, required this.onCollapse});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: kToolbarHeight,
+      child: Row(
         children: [
-          AspectRatio(
-            aspectRatio: 16 / 9,
-            // pauseUponEnteringBackgroundMode defaults to true — Video widget
-            // calls player.pause() on AppLifecycleState.paused. We rely on
-            // the foreground service instead and want audio to keep going.
-            child: Video(
-              controller: controller.videoController,
-              pauseUponEnteringBackgroundMode: false,
+          IconButton(
+            tooltip: 'Collapse',
+            icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white),
+            onPressed: onCollapse,
+          ),
+          Expanded(
+            child: Text(
+              title ?? '',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.white, fontSize: 16),
             ),
           ),
-          _Scrubber(state: state, controller: controller),
-          _Controls(state: state, controller: controller),
-          Expanded(child: _Queue(state: state, controller: controller)),
+          const SizedBox(width: 8),
         ],
       ),
     );

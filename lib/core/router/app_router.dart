@@ -3,14 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/library/presentation/screens/library_screen.dart';
-import '../../features/player/presentation/screens/player_screen.dart';
 import '../../features/search/presentation/screens/search_screen.dart';
 import '../shell/main_shell.dart';
 
 abstract final class Routes {
   static const search = '/search';
   static const library = '/library';
-  static const player = '/player';
 }
 
 final _rootKey = GlobalKey<NavigatorState>();
@@ -44,11 +42,6 @@ final appRouterProvider = Provider<GoRouter>(
             ],
           ),
         ],
-      ),
-      GoRoute(
-        path: Routes.player,
-        parentNavigatorKey: _rootKey,
-        builder: (_, _) => const PlayerScreen(),
       ),
     ],
   ),
