@@ -77,7 +77,11 @@ class WatchHistoryStore {
 
   Future<List<WatchEvent>> load() async {
     final f = await _file();
-    if (!await f.exists()) return const [];
+    // Important: return a *mutable* list. `recordStart` calls `.add()` on
+    // the result; const [] would throw UnsupportedError and be swallowed
+    // by the best-effort catch around it, silently dropping every entry
+    // until the file existed for an unrelated reason.
+    if (!await f.exists()) return <WatchEvent>[];
     try {
       final raw = await f.readAsString();
       final list = jsonDecode(raw) as List<dynamic>;
@@ -85,7 +89,7 @@ class WatchHistoryStore {
           .map((e) => WatchEvent.fromJson(e as Map<String, Object?>))
           .toList();
     } catch (_) {
-      return const [];
+      return <WatchEvent>[];
     }
   }
 
