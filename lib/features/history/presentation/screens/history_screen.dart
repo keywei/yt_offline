@@ -98,36 +98,15 @@ class _HistoryRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = S.of(context);
     final canResume = library != null;
-    final fraction = event.duration.inMilliseconds > 0
-        ? event.lastPosition.inMilliseconds / event.duration.inMilliseconds
-        : 0.0;
     return ListTile(
       title: Text(
         event.title.isEmpty ? event.videoId : event.title,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
       ),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 4),
-          Text(
-            s.historyPlayedUpTo(
-              _fmt(event.lastPosition),
-              _fmt(event.duration),
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            _relativeTime(context, event.startedAt),
-            style: const TextStyle(fontSize: 11, color: Colors.black54),
-          ),
-          if (fraction > 0)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: LinearProgressIndicator(value: fraction.clamp(0, 1)),
-            ),
-        ],
+      subtitle: Text(
+        _relativeTime(context, event.startedAt),
+        style: const TextStyle(fontSize: 11, color: Colors.black54),
       ),
       trailing: canResume
           ? IconButton(
@@ -151,13 +130,6 @@ class _HistoryRow extends ConsumerWidget {
     await ref
         .read(playbackControllerProvider.notifier)
         .playQueue([v], 0);
-  }
-
-  String _fmt(Duration d) {
-    final h = d.inHours;
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return h > 0 ? '$h:$m:$s' : '$m:$s';
   }
 
   String _relativeTime(BuildContext context, DateTime t) {
