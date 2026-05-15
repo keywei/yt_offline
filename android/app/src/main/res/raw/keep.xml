@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  audio_service looks up the notification small icon by name via
+  Resources.getIdentifier("ic_notification", "drawable", packageName).
+  AGP's resource shrinker can't see that reflective lookup and strips
+  the drawable from the release APK. This keep rule pins it.
+
+  Also pin the foreground service notification channel resources that
+  audio_service references the same way; they live as string resources
+  with default names.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_notification" />
