@@ -11,6 +11,7 @@ import '../providers/search_history_provider.dart';
 import '../providers/search_providers.dart';
 import '../state/search_state.dart';
 import '../widgets/category_picker_sheet.dart';
+import '../widgets/search_filters_sheet.dart';
 import '../widgets/video_card.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -245,6 +246,45 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ),
               ),
               actions: [
+                Consumer(
+                  builder: (context, ref, _) {
+                    final active =
+                        ref.watch(searchFiltersProvider).activeCount;
+                    final icon = IconButton(
+                      tooltip: s.searchFiltersTitle,
+                      onPressed: () => SearchFiltersSheet.show(context),
+                      icon: const Icon(Icons.tune),
+                    );
+                    if (active == 0) return icon;
+                    return Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        icon,
+                        Positioned(
+                          top: 8,
+                          right: 6,
+                          child: Container(
+                            width: 16,
+                            height: 16,
+                            alignment: Alignment.center,
+                            decoration: const BoxDecoration(
+                              color: Colors.amber,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              '$active',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
                 IconButton(
                   onPressed: () => _submit(),
                   icon: const Icon(Icons.search),

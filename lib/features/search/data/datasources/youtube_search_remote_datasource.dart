@@ -1,5 +1,7 @@
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
+import '../../domain/entities/search_filters.dart';
+
 /// Wraps `youtube_explode_dart`'s `VideoSearchList` and exposes a cursor-based
 /// iteration. The cursor lives here so the repository stays simple.
 class YoutubeSearchRemoteDataSource {
@@ -8,8 +10,15 @@ class YoutubeSearchRemoteDataSource {
 
   YoutubeSearchRemoteDataSource(this._yt);
 
-  Future<List<Video>> search(String query) async {
-    final list = await _yt.search.search(query);
+  Future<List<Video>> search(
+    String query, {
+    SearchFilters filters = SearchFilters.none,
+  }) async {
+    final sp = filters.toSpValue();
+    final list = await _yt.search.search(
+      query,
+      filter: sp.isEmpty ? TypeFilters.video : SearchFilter(sp),
+    );
     _cursor = list;
     return list.toList(growable: false);
   }

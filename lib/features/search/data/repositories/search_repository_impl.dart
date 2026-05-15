@@ -2,6 +2,7 @@ import 'dart:io';
 
 import '../../../../core/errors/failure.dart';
 import '../../../../core/result/result.dart';
+import '../../domain/entities/search_filters.dart';
 import '../../domain/entities/video_page.dart';
 import '../../domain/repositories/search_repository.dart';
 import '../datasources/youtube_search_remote_datasource.dart';
@@ -14,9 +15,12 @@ class SearchRepositoryImpl implements SearchRepository {
   SearchRepositoryImpl(this._remote);
 
   @override
-  Future<Result<VideoPage>> search(String query) async {
+  Future<Result<VideoPage>> search(
+    String query, {
+    SearchFilters filters = SearchFilters.none,
+  }) async {
     try {
-      final videos = await _remote.search(query);
+      final videos = await _remote.search(query, filters: filters);
       _hasMore = videos.isNotEmpty;
       return Ok(
         VideoPage(

@@ -161,6 +161,28 @@ class S {
   String get languageEnglish => _pick('English', 'English');
   String get languageZhTw => _pick('Traditional Chinese', '繁體中文');
 
+  // ---- Search filters ----
+  String get searchFiltersTitle => _pick('Search filters', '搜尋篩選');
+  String get filtersApply => _pick('Apply', '套用');
+  String get filtersReset => _pick('Reset', '重設');
+  String get filterAny => _pick('Any', '不限');
+  String get filterSort => _pick('Sort by', '排序');
+  String get filterDuration => _pick('Duration', '長度');
+  String get filterUploadDate => _pick('Upload date', '上傳時間');
+  String get sortRelevance => _pick('Relevance', '相關性');
+  String get sortUploadDate => _pick('Upload date', '上傳時間');
+  String get sortViewCount => _pick('View count', '觀看次數');
+  String get sortRating => _pick('Rating', '評分');
+  String get durationShort => _pick('Short (< 4 min)', '短片（< 4 分鐘）');
+  String get durationLong => _pick('Long (> 20 min)', '長片（> 20 分鐘）');
+  String get uploadLastHour => _pick('Last hour', '最近一小時');
+  String get uploadToday => _pick('Today', '今天');
+  String get uploadLastWeek => _pick('This week', '本週');
+  String get uploadLastMonth => _pick('This month', '本月');
+  String get uploadLastYear => _pick('This year', '今年');
+  String filterActiveBadge(int n) =>
+      _pick('$n filter${n == 1 ? '' : 's'}', '已套用 $n 項');
+
   // ---- Misc ----
   String get loading => _pick('Loading…', '載入中…');
 }
