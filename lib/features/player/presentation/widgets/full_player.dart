@@ -4,6 +4,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 import '../providers/playback_providers.dart';
 import '../state/playback_state.dart';
+import 'playback_speed_sheet.dart';
 import 'sleep_timer_sheet.dart';
 
 /// The expanded "Now Playing" surface. Renders the Video widget, scrubber,
@@ -183,12 +184,41 @@ class _Controls extends StatelessWidget {
             ],
           ),
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
+              _SpeedButton(state: state),
               _SleepTimerButton(state: state),
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SpeedButton extends StatelessWidget {
+  final PlaybackState state;
+  const _SpeedButton({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final active = state.playbackRate != 1.0;
+    final label = state.playbackRate == state.playbackRate.roundToDouble()
+        ? '${state.playbackRate.toInt()}×'
+        : '${state.playbackRate}×';
+    return TextButton.icon(
+      onPressed: () => PlaybackSpeedSheet.show(context),
+      icon: Icon(
+        Icons.speed,
+        size: 18,
+        color: active ? Colors.amber : Colors.white70,
+      ),
+      label: Text(
+        label,
+        style: TextStyle(
+          color: active ? Colors.amber : Colors.white70,
+          fontSize: 12,
+        ),
       ),
     );
   }

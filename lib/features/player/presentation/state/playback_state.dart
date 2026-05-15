@@ -35,6 +35,9 @@ class PlaybackState {
   /// instead of auto-advancing to the next one.
   final bool sleepAtEndOfTrack;
 
+  /// Current playback rate. 1.0 = normal speed.
+  final double playbackRate;
+
   const PlaybackState({
     this.queue = const [],
     this.index = -1,
@@ -45,6 +48,7 @@ class PlaybackState {
     this.duration = Duration.zero,
     this.sleepRemaining,
     this.sleepAtEndOfTrack = false,
+    this.playbackRate = 1.0,
   });
 
   bool get hasCurrent => index >= 0 && index < queue.length;
@@ -61,6 +65,7 @@ class PlaybackState {
     Duration? duration,
     Object? sleepRemaining = _unchanged,
     bool? sleepAtEndOfTrack,
+    double? playbackRate,
   }) =>
       PlaybackState(
         queue: queue ?? this.queue,
@@ -74,5 +79,6 @@ class PlaybackState {
             ? this.sleepRemaining
             : sleepRemaining as Duration?,
         sleepAtEndOfTrack: sleepAtEndOfTrack ?? this.sleepAtEndOfTrack,
+        playbackRate: playbackRate ?? this.playbackRate,
       );
 }

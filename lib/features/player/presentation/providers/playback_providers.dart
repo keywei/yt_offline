@@ -96,6 +96,14 @@ class PlaybackController extends Notifier<PlaybackState> {
 
   Future<void> seek(Duration to) => player.seek(to);
 
+  /// Update playback rate (0.5x .. 2.0x). Persists across track changes via
+  /// `_openCurrent` re-applying it after each `player.open`.
+  Future<void> setRate(double rate) async {
+    final clamped = rate.clamp(0.25, 4.0);
+    await player.setRate(clamped);
+    state = state.copyWith(playbackRate: clamped);
+  }
+
   Future<void> next() async {
     final n = _pickNext();
     if (n == null) {
@@ -253,6 +261,11 @@ class PlaybackController extends Notifier<PlaybackState> {
     await player.open(Media(v.videoPath));
     if (v.subtitlePath != null) {
       await player.setSubtitleTrack(SubtitleTrack.uri(v.subtitlePath!));
+    }
+    // mpv resets playback rate to 1.0 on every open(); re-apply the user's
+    // chosen rate so switching tracks doesn't snap back to normal speed.
+    if (state.playbackRate != 1.0) {
+      await player.setRate(state.playbackRate);
     }
   }
 
