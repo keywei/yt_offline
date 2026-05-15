@@ -228,12 +228,37 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           onPressed: _addCategory,
         ),
         IconButton(
+          tooltip: 'Collapse / expand all',
+          icon: const Icon(Icons.unfold_less),
+          onPressed: _toggleAllCollapsed,
+        ),
+        IconButton(
           tooltip: 'Refresh',
           icon: const Icon(Icons.refresh),
           onPressed: () => ref.invalidate(libraryListProvider),
         ),
       ],
     );
+  }
+
+  /// Gather every section key currently rendered (In progress + each
+  /// category, including empty user-created ones) and either collapse all
+  /// of them or — if they're already all collapsed — expand them all.
+  void _toggleAllCollapsed() {
+    final keys = <String>{};
+    final jobs = ref.read(downloadJobsProvider).value ?? const [];
+    if (jobs.any((j) => j.status != DownloadStatus.complete)) {
+      keys.add(_kInProgressKey);
+    }
+    final videos = ref.read(libraryListProvider).value ?? const [];
+    keys.addAll(videos.map((v) => v.category));
+    final known = ref.read(knownCategoriesProvider).value ?? const [];
+    keys.addAll(known);
+    if (keys.isEmpty) return;
+
+    final notifier = ref.read(collapsedCategoriesProvider.notifier);
+    final alreadyAllCollapsed = keys.every(notifier.state.contains);
+    notifier.state = alreadyAllCollapsed ? <String>{} : keys;
   }
 
   Widget _libraryTile({
