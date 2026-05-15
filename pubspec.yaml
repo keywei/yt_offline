@@ -48,6 +48,9 @@ dependencies:
   # Foreground service so Android doesn't kill the process when backgrounded
   flutter_background: ^1.3.0+1
 
+  # Persistent swipe-to-reveal actions (Dismissible is one-shot only)
+  flutter_slidable: ^3.1.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

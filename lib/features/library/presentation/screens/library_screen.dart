@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/storage/video_metadata.dart';
@@ -159,7 +160,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         : () => _showCategoryMenu(cat),
                   ),
                 ),
-                if (!collapsed.contains(cat))
+                if (!collapsed.contains(cat)) ...[
                   ...(grouped[cat] ?? const []).asMap().entries.map((entry) {
                     final i = entry.key;
                     final v = entry.value;
@@ -167,10 +168,32 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       v: v,
                       categoryIndex: i,
                       category: cat,
+                      categoryList: grouped[cat] ?? const [],
                       currentId: currentId,
                       isPlayingNow: isPlayingNow,
                     );
                   }),
+                  // Drop here to append to the end of this category.
+                  if (!_selectionMode &&
+                      (grouped[cat] ?? const []).isNotEmpty)
+                    _TrailingDropZone(
+                      onAcceptVideo: (dragged) {
+                        final list = grouped[cat] ?? const [];
+                        var target = list.length;
+                        if (dragged.category == cat) {
+                          // Source is in the same category → after removal,
+                          // length shrinks by 1; clamping inside repo handles
+                          // it, but keep the math explicit.
+                          target = list.length - 1;
+                        }
+                        _moveTo(
+                          video: dragged,
+                          targetCategory: cat,
+                          targetIndex: target,
+                        );
+                      },
+                    ),
+                ],
               ],
             ],
           );
@@ -217,59 +240,102 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     required VideoMetadata v,
     required int categoryIndex,
     required String category,
+    required List<VideoMetadata> categoryList,
     required String? currentId,
     required bool isPlayingNow,
   }) {
+    void onPlay() {
+      _play(List<VideoMetadata>.from(categoryList), v);
+    }
+
     final tile = DownloadedVideoTile(
       meta: v,
       isCurrent: v.id == currentId,
       isPlayingNow: isPlayingNow,
       selected: _selectionMode ? _selected.contains(v.id) : null,
-      onTap: () => _selectionMode
-          ? _toggleSelection(v)
-          : _play((ref.read(libraryListProvider).value ?? [])
-              .where((m) => m.category == category)
-              .toList()
-            ..sort((a, b) {
-              if (a.position != b.position) {
-                return a.position.compareTo(b.position);
-              }
-              return b.downloadedAt.compareTo(a.downloadedAt);
-            }),
-              v),
+      onTap: () => _selectionMode ? _toggleSelection(v) : onPlay(),
+      // Long-press the thumbnail to enter batch selection.
+      onLongPressThumbnail:
+          _selectionMode ? null : () => _enterSelection(v),
+      // Long-press the body (title/subtitle) to start a drag for reordering.
+      bodyWrapper: _selectionMode
+          ? null
+          : (child) => LongPressDraggable<VideoMetadata>(
+                data: v,
+                dragAnchorStrategy: pointerDragAnchorStrategy,
+                feedback: _dragPreview(v),
+                childWhenDragging: Opacity(opacity: 0.3, child: child),
+                child: child,
+              ),
     );
 
-    if (_selectionMode) {
-      // No swipe / drag while multi-selecting.
-      return tile;
-    }
-    final dismissibleTile = Dismissible(
-      key: ValueKey('lib-${v.id}'),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        color: Colors.red,
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: const Icon(Icons.delete, color: Colors.white),
-      ),
-      confirmDismiss: (_) => _confirmDelete(v),
-      onDismissed: (_) async {
-        await ref.read(libraryRepositoryProvider).delete(v.id);
-        ref.invalidate(libraryListProvider);
-      },
-      child: tile,
-    );
-    return _DraggableTile(
+    if (_selectionMode) return tile;
+
+    return _DropTarget(
       meta: v,
-      onAcceptVideo: (dragged) => _moveTo(
-        video: dragged,
-        targetCategory: category,
-        targetIndex: categoryIndex,
+      onAcceptVideo: (dragged) {
+        // Caller passes `categoryIndex` which is the rendered position of
+        // the target tile. The repo removes the source from its current
+        // place first, so if the source is in the same category AND comes
+        // BEFORE the target, the target's post-removal index is one less.
+        var adjusted = categoryIndex;
+        if (dragged.category == category) {
+          final sourcePos =
+              categoryList.indexWhere((m) => m.id == dragged.id);
+          if (sourcePos >= 0 && sourcePos < categoryIndex) {
+            adjusted -= 1;
+          }
+        }
+        _moveTo(
+          video: dragged,
+          targetCategory: category,
+          targetIndex: adjusted,
+        );
+      },
+      child: Slidable(
+        key: ValueKey('lib-${v.id}'),
+        endActionPane: ActionPane(
+          motion: const BehindMotion(),
+          extentRatio: 0.22,
+          children: [
+            SlidableAction(
+              onPressed: (_) async {
+                await ref.read(libraryRepositoryProvider).delete(v.id);
+                ref.invalidate(libraryListProvider);
+              },
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              icon: Icons.delete,
+              label: 'Delete',
+            ),
+          ],
+        ),
+        child: tile,
       ),
-      onLongPressEnterSelection: () => _enterSelection(v),
-      child: dismissibleTile,
     );
   }
+
+  Widget _dragPreview(VideoMetadata v) => Material(
+        elevation: 6,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 260,
+          padding: const EdgeInsets.all(8),
+          child: Row(
+            children: [
+              const Icon(Icons.drag_indicator, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  v.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
 
   void _toggleCollapsed(String key) {
     final notifier = ref.read(collapsedCategoriesProvider.notifier);
@@ -287,12 +353,31 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     required String targetCategory,
     required int targetIndex,
   }) async {
-    await ref.read(libraryRepositoryProvider).move(
-          videoId: video.id,
-          targetCategory: targetCategory,
-          targetIndex: targetIndex,
-        );
+    final repo = ref.read(libraryRepositoryProvider);
+    await repo.move(
+      videoId: video.id,
+      targetCategory: targetCategory,
+      targetIndex: targetIndex,
+    );
     ref.invalidate(libraryListProvider);
+
+    // Refresh playback queue if the active video belongs to a category
+    // the user just touched. The current video's category may have just
+    // changed (if it was the one moved), so look it up post-move.
+    final playback = ref.read(playbackControllerProvider);
+    final activeId = playback.current?.id;
+    if (activeId != null) {
+      final fresh = await repo.listAll();
+      final activeVideo =
+          fresh.firstWhere((v) => v.id == activeId, orElse: () => playback.current!);
+      final cat = activeVideo.category;
+      final newQueue = fresh.where((v) => v.category == cat).toList()
+        ..sort((a, b) {
+          if (a.position != b.position) return a.position.compareTo(b.position);
+          return b.downloadedAt.compareTo(a.downloadedAt);
+        });
+      ref.read(playbackControllerProvider.notifier).syncQueue(newQueue);
+    }
   }
 
   Future<void> _play(
@@ -307,27 +392,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         .playQueue(categoryQueue, idx);
     if (!mounted || wasPlaying) return;
     unawaited(context.push('/player'));
-  }
-
-  Future<bool> _confirmDelete(VideoMetadata v) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Delete "${v.title}"?'),
-        content: const Text('Removes the video, subtitle, and metadata.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    return ok ?? false;
   }
 
   // ---- Category CRUD ----
@@ -500,20 +564,49 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 }
 
-/// A tile that is both a drag SOURCE (long-press to lift) and a drag TARGET
-/// (other tiles drop onto it → insert above this tile). Wrap the Dismissible
-/// inside so swipe-delete continues to work.
-class _DraggableTile extends StatelessWidget {
+/// A thin strip below the last tile of a category. Dropping here appends
+/// the dragged video to the END of the category (since per-tile drop only
+/// inserts ABOVE its tile, the very last position is unreachable without it).
+class _TrailingDropZone extends StatelessWidget {
+  final ValueChanged<VideoMetadata> onAcceptVideo;
+  const _TrailingDropZone({required this.onAcceptVideo});
+
+  @override
+  Widget build(BuildContext context) {
+    return DragTarget<VideoMetadata>(
+      onAcceptWithDetails: (d) => onAcceptVideo(d.data),
+      builder: (context, candidate, _) {
+        final hovering = candidate.isNotEmpty;
+        return Container(
+          height: 28,
+          margin: const EdgeInsets.only(bottom: 4),
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(
+                color: hovering
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.transparent,
+                width: 3,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Drop-only wrapper: receives other tiles dropped onto it (insert above).
+/// The drag SOURCE lives inside the tile body (long-press the text area).
+class _DropTarget extends StatelessWidget {
   final VideoMetadata meta;
   final Widget child;
   final ValueChanged<VideoMetadata> onAcceptVideo;
-  final VoidCallback onLongPressEnterSelection;
 
-  const _DraggableTile({
+  const _DropTarget({
     required this.meta,
     required this.child,
     required this.onAcceptVideo,
-    required this.onLongPressEnterSelection,
   });
 
   @override
@@ -534,17 +627,7 @@ class _DraggableTile extends StatelessWidget {
               ),
             ),
           ),
-          child: LongPressDraggable<VideoMetadata>(
-            data: meta,
-            dragAnchorStrategy: pointerDragAnchorStrategy,
-            feedback: Material(
-              elevation: 6,
-              borderRadius: BorderRadius.circular(8),
-              child: SizedBox(width: 280, child: child),
-            ),
-            childWhenDragging: Opacity(opacity: 0.25, child: child),
-            child: child,
-          ),
+          child: child,
         );
       },
     );

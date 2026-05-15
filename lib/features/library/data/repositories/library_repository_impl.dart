@@ -22,6 +22,7 @@ class LibraryRepositoryImpl implements LibraryRepository {
   }) async {
     final all = await _store.listAll();
     final source = all.firstWhere((v) => v.id == videoId);
+    final sourceCategory = source.category;
 
     final targetList = all
         .where((v) => v.category == targetCategory && v.id != videoId)
@@ -39,6 +40,19 @@ class LibraryRepositoryImpl implements LibraryRepository {
       final needsUpdate = v.position != i || v.category != targetCategory;
       if (needsUpdate) {
         await _store.save(v.copyWith(category: targetCategory, position: i));
+      }
+    }
+
+    // If the source's old category just became empty, persist it as an
+    // empty category so it doesn't vanish from the Library list. The
+    // default Uncategorized is always implicit and skipped here.
+    if (sourceCategory != targetCategory &&
+        sourceCategory != VideoMetadata.defaultCategory) {
+      final remaining = (await _store.listAll())
+          .where((v) => v.category == sourceCategory)
+          .length;
+      if (remaining == 0) {
+        await _categories.add(sourceCategory);
       }
     }
   }

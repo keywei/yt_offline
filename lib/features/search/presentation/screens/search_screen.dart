@@ -91,8 +91,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       _toggleSelection(v);
       return;
     }
+    FocusScope.of(context).unfocus();
     final category = await CategoryPickerSheet.show(context);
-    if (category == null || !mounted) return;
+    if (!mounted) return;
+    FocusScope.of(context).unfocus();
+    if (category == null) return;
     _showPreparing(v.title, category);
     final result = await ref.read(downloadVideoUseCaseProvider)(
       videoId: v.id,
@@ -121,8 +124,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Future<void> _enqueueSelected(List<VideoSummary> all) async {
     final selected = all.where((v) => _selected.contains(v.id)).toList();
     if (selected.isEmpty) return;
+    FocusScope.of(context).unfocus();
     final category = await CategoryPickerSheet.show(context);
-    if (category == null || !mounted) return;
+    if (!mounted) return;
+    FocusScope.of(context).unfocus();
+    if (category == null) return;
     _showPreparing('${selected.length} videos', category);
     final useCase = ref.read(downloadVideoUseCaseProvider);
 
@@ -195,7 +201,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final state = ref.watch(searchControllerProvider);
     final loadedVideos = state is SearchLoaded ? state.videos : const <VideoSummary>[];
 
-    return Scaffold(
+    // Tap anywhere outside the TextField (and outside other interactive
+    // widgets, since they'll consume the gesture first) drops focus.
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
       appBar: _selectionMode
           ? AppBar(
               leading: IconButton(
@@ -266,6 +277,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   onLongPress: _enterSelection,
                 ),
             },
+      ),
     );
   }
 }

@@ -115,6 +115,18 @@ class PlaybackController extends Notifier<PlaybackState> {
     await player.play();
   }
 
+  /// Replace the queue with a re-sorted / re-categorised list while
+  /// keeping the same video playing. Used by Library after a drag-to-
+  /// reorder / drag-to-recategorise. No-op if the active video isn't in
+  /// the new list (e.g. user moved it to a different category).
+  void syncQueue(List<VideoMetadata> newQueue) {
+    final activeId = state.current?.id;
+    if (activeId == null) return;
+    final newIndex = newQueue.indexWhere((v) => v.id == activeId);
+    if (newIndex < 0) return;
+    state = state.copyWith(queue: newQueue, index: newIndex);
+  }
+
   /// Stop playback, clear the queue, release the background service.
   /// Mini player auto-hides because `state.current` becomes null.
   Future<void> stop() async {
