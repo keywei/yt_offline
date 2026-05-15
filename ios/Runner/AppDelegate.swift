@@ -21,7 +21,7 @@ import UIKit
 
     let channel = FlutterMethodChannel(
       name: AppDelegate.orientationChannelName,
-      binaryMessenger: engineBridge.binaryMessenger
+      binaryMessenger: engineBridge.applicationRegistrar.messenger()
     )
     channel.setMethodCallHandler { [weak self] call, result in
       self?.handleOrientationCall(call, result: result)
