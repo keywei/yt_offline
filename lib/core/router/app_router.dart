@@ -4,16 +4,19 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/library/presentation/screens/library_screen.dart';
 import '../../features/search/presentation/screens/search_screen.dart';
+import '../../features/settings/presentation/screens/settings_screen.dart';
 import '../shell/main_shell.dart';
 
 abstract final class Routes {
   static const search = '/search';
   static const library = '/library';
+  static const settings = '/settings';
 }
 
 final _rootKey = GlobalKey<NavigatorState>();
 final _searchKey = GlobalKey<NavigatorState>();
 final _libraryKey = GlobalKey<NavigatorState>();
+final _settingsKey = GlobalKey<NavigatorState>();
 
 final appRouterProvider = Provider<GoRouter>(
   (ref) => GoRouter(
@@ -38,6 +41,15 @@ final appRouterProvider = Provider<GoRouter>(
               GoRoute(
                 path: Routes.library,
                 builder: (_, _) => const LibraryScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            navigatorKey: _settingsKey,
+            routes: [
+              GoRoute(
+                path: Routes.settings,
+                builder: (_, _) => const SettingsScreen(),
               ),
             ],
           ),

@@ -37,6 +37,11 @@ class MainShell extends StatelessWidget {
                   selectedIcon: Icon(Icons.video_library),
                   label: 'Library',
                 ),
+                NavigationDestination(
+                  icon: Icon(Icons.settings_outlined),
+                  selectedIcon: Icon(Icons.settings),
+                  label: 'Settings',
+                ),
               ],
             ),
           ],

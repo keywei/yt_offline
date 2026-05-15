@@ -53,6 +53,9 @@ dependencies:
   # Persistent swipe-to-reveal actions (Dismissible is one-shot only)
   flutter_slidable: ^3.1.2
 
+  # Read version + build number from the platform at runtime
+  package_info_plus: ^8.1.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
