@@ -101,6 +101,16 @@ class PlaybackController extends Notifier<PlaybackState> {
       unawaited(stop());
     };
 
+    // Auto-sync the queue with the library: whenever a video is added,
+    // deleted, renamed, moved or reordered in the playing category, fold
+    // the change into the live queue.
+    ref.listen<AsyncValue<List<VideoMetadata>>>(
+      libraryListProvider,
+      (prev, next) {
+        next.whenData(_resyncQueueFromLibrary);
+      },
+    );
+
     ref.onDispose(() {
       handler.onPlay = null;
       handler.onPause = null;
@@ -197,6 +207,65 @@ class PlaybackController extends Notifier<PlaybackState> {
     final newIndex = newQueue.indexWhere((v) => v.id == activeId);
     if (newIndex < 0) return;
     state = state.copyWith(queue: newQueue, index: newIndex);
+  }
+
+  /// Called whenever [libraryListProvider] emits. Diffs the current category
+  /// against the new library snapshot and keeps the queue in sync:
+  ///
+  /// - new download in same category → added to queue
+  /// - sibling deleted              → removed from queue
+  /// - sibling moved out / in       → queue grows or shrinks
+  /// - reordering                   → queue order updated
+  /// - category renamed             → tracked via the active video's new
+  ///                                  category name in the fresh list
+  /// - **active video deleted**     → advance to the next sibling, or stop
+  ///                                  if the category is now empty
+  void _resyncQueueFromLibrary(List<VideoMetadata> all) {
+    if (!state.hasCurrent) return;
+    final activeId = state.current!.id;
+
+    // Look the active track up in the fresh list so a category rename
+    // (which rewrites every member's `category`) is followed correctly.
+    final freshActive = all.firstWhere(
+      (v) => v.id == activeId,
+      orElse: () => state.current!,
+    );
+    final activeCategory = freshActive.category;
+
+    final newQueue = all.where((v) => v.category == activeCategory).toList()
+      ..sort((a, b) {
+        if (a.position != b.position) return a.position.compareTo(b.position);
+        return b.downloadedAt.compareTo(a.downloadedAt);
+      });
+
+    final newIndex = newQueue.indexWhere((v) => v.id == activeId);
+
+    if (newIndex >= 0) {
+      // Active still present — update queue if order / size changed.
+      if (!_queueOrderEquals(newQueue, state.queue)) {
+        state = state.copyWith(queue: newQueue, index: newIndex);
+      }
+      return;
+    }
+
+    // Active video has been deleted (or moved to another category by an
+    // outside path that didn't go through our move/syncQueue helpers).
+    if (newQueue.isEmpty) {
+      unawaited(stop());
+      return;
+    }
+    // Fall through to a sibling near where the old item was.
+    final fallback = state.index.clamp(0, newQueue.length - 1);
+    state = state.copyWith(queue: newQueue, index: fallback);
+    unawaited(_openCurrent().then((_) => player.play()));
+  }
+
+  bool _queueOrderEquals(List<VideoMetadata> a, List<VideoMetadata> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].id != b[i].id) return false;
+    }
+    return true;
   }
 
   // ---- Sleep timer ----

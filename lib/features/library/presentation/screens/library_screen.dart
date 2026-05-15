@@ -353,31 +353,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     required String targetCategory,
     required int targetIndex,
   }) async {
-    final repo = ref.read(libraryRepositoryProvider);
-    await repo.move(
-      videoId: video.id,
-      targetCategory: targetCategory,
-      targetIndex: targetIndex,
-    );
+    await ref.read(libraryRepositoryProvider).move(
+          videoId: video.id,
+          targetCategory: targetCategory,
+          targetIndex: targetIndex,
+        );
+    // PlaybackController listens to libraryListProvider and re-syncs the
+    // queue automatically on this invalidation — no need to push here.
     ref.invalidate(libraryListProvider);
-
-    // Refresh playback queue if the active video belongs to a category
-    // the user just touched. The current video's category may have just
-    // changed (if it was the one moved), so look it up post-move.
-    final playback = ref.read(playbackControllerProvider);
-    final activeId = playback.current?.id;
-    if (activeId != null) {
-      final fresh = await repo.listAll();
-      final activeVideo =
-          fresh.firstWhere((v) => v.id == activeId, orElse: () => playback.current!);
-      final cat = activeVideo.category;
-      final newQueue = fresh.where((v) => v.category == cat).toList()
-        ..sort((a, b) {
-          if (a.position != b.position) return a.position.compareTo(b.position);
-          return b.downloadedAt.compareTo(a.downloadedAt);
-        });
-      ref.read(playbackControllerProvider.notifier).syncQueue(newQueue);
-    }
   }
 
   Future<void> _play(
