@@ -27,3 +27,9 @@ final class StorageFailure extends Failure {
 final class UnknownFailure extends Failure {
   const UnknownFailure([super.message = 'Unknown error']);
 }
+
+/// The caller tried to enqueue a video that already exists in the library.
+/// Presentation treats this as a neutral info, not an error.
+final class AlreadyDownloadedFailure extends Failure {
+  const AlreadyDownloadedFailure([super.message = 'Already in library']);
+}

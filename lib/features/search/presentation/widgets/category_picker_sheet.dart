@@ -40,14 +40,9 @@ class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final library = ref.watch(libraryListProvider);
-    final categories = library.maybeWhen(
-      data: (videos) => videos
-          .map((v) => v.category)
-          .where((c) => c.isNotEmpty)
-          .toSet()
-          .toList()
-        ..sort(),
+    final known = ref.watch(knownCategoriesProvider);
+    final categories = known.maybeWhen(
+      data: (list) => list,
       orElse: () => <String>[],
     );
 

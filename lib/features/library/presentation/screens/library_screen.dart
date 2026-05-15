@@ -14,11 +14,44 @@ import '../widgets/downloaded_video_tile.dart';
 
 const _kInProgressKey = '__in_progress__';
 
-class LibraryScreen extends ConsumerWidget {
+class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LibraryScreen> createState() => _LibraryScreenState();
+}
+
+class _LibraryScreenState extends ConsumerState<LibraryScreen> {
+  bool _selectionMode = false;
+  final _selected = <String>{};
+
+  void _enterSelection(VideoMetadata v) {
+    setState(() {
+      _selectionMode = true;
+      _selected.add(v.id);
+    });
+  }
+
+  void _toggleSelection(VideoMetadata v) {
+    setState(() {
+      if (_selected.contains(v.id)) {
+        _selected.remove(v.id);
+        if (_selected.isEmpty) _selectionMode = false;
+      } else {
+        _selected.add(v.id);
+      }
+    });
+  }
+
+  void _exitSelection() {
+    setState(() {
+      _selectionMode = false;
+      _selected.clear();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final list = ref.watch(libraryListProvider);
     final jobs = ref.watch(downloadJobsProvider);
     final playback = ref.watch(playbackControllerProvider);
@@ -27,15 +60,7 @@ class LibraryScreen extends ConsumerWidget {
     final isPlayingNow = playback.isPlaying;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Library'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => ref.invalidate(libraryListProvider),
-          ),
-        ],
-      ),
+      appBar: _buildAppBar(),
       body: list.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
@@ -47,16 +72,6 @@ class LibraryScreen extends ConsumerWidget {
           final activeJobs = allJobs
               .where((j) => j.status != DownloadStatus.complete)
               .toList();
-
-          if (videos.isEmpty && activeJobs.isEmpty) {
-            return const Center(
-              child: Text(
-                'Nothing downloaded yet.\nTap a video on Search to download.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.black87),
-              ),
-            );
-          }
 
           // Group by category, sort each by (position asc, downloadedAt desc).
           final grouped = <String, List<VideoMetadata>>{};
@@ -71,7 +86,32 @@ class LibraryScreen extends ConsumerWidget {
               return b.downloadedAt.compareTo(a.downloadedAt);
             });
           }
-          final categories = grouped.keys.toList()..sort();
+
+          // Include empty (user-created) categories from the category list.
+          final known = ref.watch(knownCategoriesProvider).maybeWhen(
+                data: (l) => l,
+                orElse: () => <String>[],
+              );
+          final allCategories = {
+            ...grouped.keys,
+            ...known,
+          }.toList()
+            ..sort();
+
+          // Only Uncategorized always renders even if empty + only category;
+          // hide totally empty non-Uncategorized categories when there are
+          // no videos at all (looks cleaner on first launch).
+          final hasAnything =
+              videos.isNotEmpty || activeJobs.isNotEmpty || known.isNotEmpty;
+          if (!hasAnything) {
+            return const Center(
+              child: Text(
+                'Nothing downloaded yet.\nTap a video on Search to download.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.black87),
+              ),
+            );
+          }
 
           final inProgressCollapsed = collapsed.contains(_kInProgressKey);
 
@@ -81,7 +121,7 @@ class LibraryScreen extends ConsumerWidget {
                 _SectionHeader(
                   text: 'In progress (${activeJobs.length})',
                   collapsed: inProgressCollapsed,
-                  onTap: () => _toggleCategory(ref, _kInProgressKey),
+                  onTap: () => _toggleCollapsed(_kInProgressKey),
                 ),
                 if (!inProgressCollapsed)
                   ...activeJobs.map(
@@ -101,41 +141,34 @@ class LibraryScreen extends ConsumerWidget {
                   ),
                 const Divider(height: 1),
               ],
-              for (final cat in categories) ...[
+              for (final cat in allCategories) ...[
                 _CategoryDropTarget(
                   category: cat,
+                  enabled: !_selectionMode,
                   onAcceptVideo: (v) => _moveTo(
-                    ref,
                     video: v,
                     targetCategory: cat,
-                    targetIndex: grouped[cat]!.length,
+                    targetIndex: (grouped[cat] ?? const []).length,
                   ),
                   child: _SectionHeader(
-                    text: '$cat (${grouped[cat]!.length})',
+                    text: '$cat (${(grouped[cat] ?? const []).length})',
                     collapsed: collapsed.contains(cat),
-                    onTap: () => _toggleCategory(ref, cat),
+                    onTap: () => _toggleCollapsed(cat),
+                    onLongPress: cat == VideoMetadata.defaultCategory
+                        ? null
+                        : () => _showCategoryMenu(cat),
                   ),
                 ),
                 if (!collapsed.contains(cat))
-                  ...grouped[cat]!.asMap().entries.map((entry) {
+                  ...(grouped[cat] ?? const []).asMap().entries.map((entry) {
                     final i = entry.key;
                     final v = entry.value;
-                    return _DraggableTile(
-                      meta: v,
-                      onAcceptVideo: (dragged) => _moveTo(
-                        ref,
-                        video: dragged,
-                        targetCategory: cat,
-                        targetIndex: i,
-                      ),
-                      child: DownloadedVideoTile(
-                        meta: v,
-                        isCurrent: v.id == currentId,
-                        isPlayingNow: isPlayingNow,
-                        onTap: () =>
-                            _play(context, ref, grouped[cat]!, v),
-                        onDelete: () => _confirmDelete(context, ref, v),
-                      ),
+                    return _libraryTile(
+                      v: v,
+                      categoryIndex: i,
+                      category: cat,
+                      currentId: currentId,
+                      isPlayingNow: isPlayingNow,
                     );
                   }),
               ],
@@ -146,7 +179,99 @@ class LibraryScreen extends ConsumerWidget {
     );
   }
 
-  void _toggleCategory(WidgetRef ref, String key) {
+  PreferredSizeWidget _buildAppBar() {
+    if (_selectionMode) {
+      return AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: _exitSelection,
+        ),
+        title: Text('${_selected.length} selected'),
+        actions: [
+          IconButton(
+            tooltip: 'Move to category',
+            icon: const Icon(Icons.drive_file_move_outline),
+            onPressed: _batchMove,
+          ),
+        ],
+      );
+    }
+    return AppBar(
+      title: const Text('Library'),
+      actions: [
+        IconButton(
+          tooltip: 'New category',
+          icon: const Icon(Icons.create_new_folder_outlined),
+          onPressed: _addCategory,
+        ),
+        IconButton(
+          tooltip: 'Refresh',
+          icon: const Icon(Icons.refresh),
+          onPressed: () => ref.invalidate(libraryListProvider),
+        ),
+      ],
+    );
+  }
+
+  Widget _libraryTile({
+    required VideoMetadata v,
+    required int categoryIndex,
+    required String category,
+    required String? currentId,
+    required bool isPlayingNow,
+  }) {
+    final tile = DownloadedVideoTile(
+      meta: v,
+      isCurrent: v.id == currentId,
+      isPlayingNow: isPlayingNow,
+      selected: _selectionMode ? _selected.contains(v.id) : null,
+      onTap: () => _selectionMode
+          ? _toggleSelection(v)
+          : _play((ref.read(libraryListProvider).value ?? [])
+              .where((m) => m.category == category)
+              .toList()
+            ..sort((a, b) {
+              if (a.position != b.position) {
+                return a.position.compareTo(b.position);
+              }
+              return b.downloadedAt.compareTo(a.downloadedAt);
+            }),
+              v),
+    );
+
+    if (_selectionMode) {
+      // No swipe / drag while multi-selecting.
+      return tile;
+    }
+    final dismissibleTile = Dismissible(
+      key: ValueKey('lib-${v.id}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        color: Colors.red,
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: const Icon(Icons.delete, color: Colors.white),
+      ),
+      confirmDismiss: (_) => _confirmDelete(v),
+      onDismissed: (_) async {
+        await ref.read(libraryRepositoryProvider).delete(v.id);
+        ref.invalidate(libraryListProvider);
+      },
+      child: tile,
+    );
+    return _DraggableTile(
+      meta: v,
+      onAcceptVideo: (dragged) => _moveTo(
+        video: dragged,
+        targetCategory: category,
+        targetIndex: categoryIndex,
+      ),
+      onLongPressEnterSelection: () => _enterSelection(v),
+      child: dismissibleTile,
+    );
+  }
+
+  void _toggleCollapsed(String key) {
     final notifier = ref.read(collapsedCategoriesProvider.notifier);
     final next = Set<String>.from(notifier.state);
     if (next.contains(key)) {
@@ -157,8 +282,7 @@ class LibraryScreen extends ConsumerWidget {
     notifier.state = next;
   }
 
-  Future<void> _moveTo(
-    WidgetRef ref, {
+  Future<void> _moveTo({
     required VideoMetadata video,
     required String targetCategory,
     required int targetIndex,
@@ -172,8 +296,6 @@ class LibraryScreen extends ConsumerWidget {
   }
 
   Future<void> _play(
-    BuildContext context,
-    WidgetRef ref,
     List<VideoMetadata> categoryQueue,
     VideoMetadata tapped,
   ) async {
@@ -183,20 +305,16 @@ class LibraryScreen extends ConsumerWidget {
     await ref
         .read(playbackControllerProvider.notifier)
         .playQueue(categoryQueue, idx);
-    if (!context.mounted || wasPlaying) return;
+    if (!mounted || wasPlaying) return;
     unawaited(context.push('/player'));
   }
 
-  Future<void> _confirmDelete(
-    BuildContext context,
-    WidgetRef ref,
-    VideoMetadata v,
-  ) async {
+  Future<bool> _confirmDelete(VideoMetadata v) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Delete "${v.title}"?'),
-        content: const Text('This removes the video, subtitle, and metadata.'),
+        content: const Text('Removes the video, subtitle, and metadata.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -209,24 +327,193 @@ class LibraryScreen extends ConsumerWidget {
         ],
       ),
     );
-    if ((ok ?? false) && context.mounted) {
-      await ref.read(libraryRepositoryProvider).delete(v.id);
+    return ok ?? false;
+  }
+
+  // ---- Category CRUD ----
+
+  Future<void> _addCategory() async {
+    final name = await _showNameDialog(title: 'New category');
+    if (name == null || name.isEmpty) return;
+    await ref.read(libraryRepositoryProvider).addCategory(name);
+    ref.invalidate(libraryListProvider);
+  }
+
+  void _showCategoryMenu(String category) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Rename category'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _renameCategory(category);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text('Delete category',
+                  style: TextStyle(color: Colors.red)),
+              subtitle: const Text('Videos move to Uncategorized'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _deleteCategory(category);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _renameCategory(String oldName) async {
+    final newName = await _showNameDialog(
+      title: 'Rename "$oldName"',
+      initial: oldName,
+    );
+    if (newName == null || newName.isEmpty || newName == oldName) return;
+    await ref
+        .read(libraryRepositoryProvider)
+        .renameCategory(oldName, newName);
+    ref.invalidate(libraryListProvider);
+  }
+
+  Future<void> _deleteCategory(String name) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete category "$name"?'),
+        content: const Text(
+            'All videos in this category will move to Uncategorized.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok ?? false) {
+      await ref.read(libraryRepositoryProvider).deleteCategory(name);
       ref.invalidate(libraryListProvider);
     }
+  }
+
+  Future<String?> _showNameDialog({
+    required String title,
+    String initial = '',
+  }) {
+    final controller = TextEditingController(text: initial);
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textInputAction: TextInputAction.done,
+          decoration: const InputDecoration(labelText: 'Name'),
+          onSubmitted: (v) => Navigator.of(ctx).pop(v.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---- Batch move ----
+
+  Future<void> _batchMove() async {
+    if (_selected.isEmpty) return;
+    final target = await _pickCategoryForMove();
+    if (target == null) return;
+    final repo = ref.read(libraryRepositoryProvider);
+    // Snapshot the selection because UI may exit mode before async finishes.
+    final ids = _selected.toList();
+    for (final id in ids) {
+      final size = (await repo.listAll())
+          .where((v) => v.category == target)
+          .length;
+      await repo.move(
+        videoId: id,
+        targetCategory: target,
+        targetIndex: size,
+      );
+    }
+    ref.invalidate(libraryListProvider);
+    _exitSelection();
+  }
+
+  Future<String?> _pickCategoryForMove() async {
+    final categoriesAsync = ref.read(knownCategoriesProvider);
+    final categories = categoriesAsync.maybeWhen(
+      data: (l) => l,
+      orElse: () => [VideoMetadata.defaultCategory],
+    );
+    return showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Text(
+                'Move ${_selected.length} videos to…',
+                style: Theme.of(ctx).textTheme.titleMedium,
+              ),
+            ),
+            const Divider(height: 1),
+            ...categories.map(
+              (c) => ListTile(
+                leading: Icon(
+                  c == VideoMetadata.defaultCategory
+                      ? Icons.inbox_outlined
+                      : Icons.folder_outlined,
+                ),
+                title: Text(c),
+                onTap: () => Navigator.of(ctx).pop(c),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
 /// A tile that is both a drag SOURCE (long-press to lift) and a drag TARGET
-/// (other tiles drop onto it → insert above this tile).
+/// (other tiles drop onto it → insert above this tile). Wrap the Dismissible
+/// inside so swipe-delete continues to work.
 class _DraggableTile extends StatelessWidget {
   final VideoMetadata meta;
   final Widget child;
   final ValueChanged<VideoMetadata> onAcceptVideo;
+  final VoidCallback onLongPressEnterSelection;
 
   const _DraggableTile({
     required this.meta,
     required this.child,
     required this.onAcceptVideo,
+    required this.onLongPressEnterSelection,
   });
 
   @override
@@ -264,21 +551,22 @@ class _DraggableTile extends StatelessWidget {
   }
 }
 
-/// A drag target wrapping the section header. Dropping a video here moves
-/// it to the end of that category (cross-category recategorize).
 class _CategoryDropTarget extends StatelessWidget {
   final String category;
+  final bool enabled;
   final Widget child;
   final ValueChanged<VideoMetadata> onAcceptVideo;
 
   const _CategoryDropTarget({
     required this.category,
+    required this.enabled,
     required this.child,
     required this.onAcceptVideo,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (!enabled) return child;
     return DragTarget<VideoMetadata>(
       onWillAcceptWithDetails: (d) => d.data.category != category,
       onAcceptWithDetails: (d) => onAcceptVideo(d.data),
@@ -299,14 +587,21 @@ class _SectionHeader extends StatelessWidget {
   final String text;
   final bool? collapsed;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
-  const _SectionHeader({required this.text, this.collapsed, this.onTap});
+  const _SectionHeader({
+    required this.text,
+    this.collapsed,
+    this.onTap,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
     final showChevron = collapsed != null;
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
         child: Row(
@@ -320,7 +615,14 @@ class _SectionHeader extends StatelessWidget {
               ),
               const SizedBox(width: 4),
             ],
-            Text(text, style: Theme.of(context).textTheme.labelLarge),
+            Expanded(
+              child: Text(
+                text,
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+            ),
+            if (onLongPress != null)
+              const Icon(Icons.more_vert, size: 16, color: Colors.black38),
           ],
         ),
       ),

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/errors/failure.dart';
 import '../../../download/presentation/providers/download_providers.dart';
 import '../../domain/entities/video_summary.dart';
 import '../providers/search_history_provider.dart';
@@ -21,30 +22,24 @@ class SearchScreen extends ConsumerStatefulWidget {
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
+  final _focusNode = FocusNode();
   bool _selectionMode = false;
   final _selected = <String>{}; // videoIds
-
-  String _lastText = '';
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    _textController.addListener(() {
-      // When the field becomes empty, kick the controller back to
-      // SearchInitial so the history view replaces stale results.
-      if (_textController.text.isEmpty && _lastText.isNotEmpty) {
-        ref.read(searchControllerProvider.notifier).clear();
-      }
-      _lastText = _textController.text;
-      setState(() {});
-    });
+    // Rebuild on text or focus change so the body picks the right view.
+    _textController.addListener(() => setState(() {}));
+    _focusNode.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _focusNode.dispose();
     _textController.dispose();
     super.dispose();
   }
@@ -108,9 +103,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (!mounted) return;
     result.when(
       ok: (_) {},
-      err: (f) => ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(SnackBar(content: Text('Failed: ${f.message}'))),
+      err: (f) {
+        final messenger = ScaffoldMessenger.of(context)..clearSnackBars();
+        if (f is AlreadyDownloadedFailure) {
+          messenger.showSnackBar(SnackBar(
+            content: Text('"${v.title}" is already in your library'),
+          ));
+        } else {
+          messenger.showSnackBar(
+            SnackBar(content: Text('Failed: ${f.message}')),
+          );
+        }
+      },
     );
   }
 
@@ -121,16 +125,40 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (category == null || !mounted) return;
     _showPreparing('${selected.length} videos', category);
     final useCase = ref.read(downloadVideoUseCaseProvider);
-    // Fire all enqueues in parallel — each immediately inserts a
-    // `preparing` job entry, so the Library "In progress" list shows
-    // every selected item right away.
-    for (final v in selected) {
-      unawaited(useCase(
+
+    // Fire all enqueues in parallel. Tally duplicates / new so we can
+    // surface a single summary at the end.
+    final futures = selected.map(
+      (v) => useCase(
         videoId: v.id,
         title: v.title,
         thumbnailUrl: v.thumbnailUrl,
         category: category,
-      ));
+      ),
+    );
+    final results = await Future.wait(futures);
+    if (!mounted) return;
+
+    var duplicates = 0;
+    var queued = 0;
+    for (final r in results) {
+      r.when(
+        ok: (_) => queued++,
+        err: (f) {
+          if (f is AlreadyDownloadedFailure) duplicates++;
+        },
+      );
+    }
+    if (duplicates > 0) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(SnackBar(
+          content: Text(
+            duplicates == selected.length
+                ? 'All $duplicates already in library'
+                : '$queued queued • $duplicates already in library',
+          ),
+        ));
     }
     _exitSelection();
   }
@@ -186,6 +214,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           : AppBar(
               title: TextField(
                 controller: _textController,
+                focusNode: _focusNode,
                 textInputAction: TextInputAction.search,
                 onSubmitted: _submit,
                 decoration: InputDecoration(
@@ -206,28 +235,37 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ),
               ],
             ),
-      body: switch (state) {
-        SearchInitial() => _HistoryView(
-            filter: _textController.text,
-            onPick: (q) {
-              _textController.text = q;
-              _submit(q);
+      body: _focusNode.hasFocus
+          ? _HistoryView(
+              filter: _textController.text,
+              onPick: (q) {
+                _textController.text = q;
+                _submit(q);
+              },
+            )
+          : switch (state) {
+              SearchInitial() => const Center(
+                  child: Text(
+                    'Tap the search box to start',
+                    style: TextStyle(color: Colors.black87, fontSize: 16),
+                  ),
+                ),
+              SearchLoading() =>
+                const Center(child: CircularProgressIndicator()),
+              SearchError(:final message) => Center(
+                  child: Text(message, style: const TextStyle(fontSize: 16)),
+                ),
+              SearchLoaded(videos: final v) when v.isEmpty =>
+                const Center(child: Text('No results')),
+              SearchLoaded() => _ResultList(
+                  state: state,
+                  scrollController: _scrollController,
+                  selectionMode: _selectionMode,
+                  selected: _selected,
+                  onTap: _onVideoTap,
+                  onLongPress: _enterSelection,
+                ),
             },
-          ),
-        SearchLoading() => const Center(child: CircularProgressIndicator()),
-        SearchError(:final message) =>
-          Center(child: Text(message, style: const TextStyle(fontSize: 16))),
-        SearchLoaded(videos: final v) when v.isEmpty =>
-          const Center(child: Text('No results')),
-        SearchLoaded() => _ResultList(
-            state: state,
-            scrollController: _scrollController,
-            selectionMode: _selectionMode,
-            selected: _selected,
-            onTap: _onVideoTap,
-            onLongPress: _enterSelection,
-          ),
-      },
     );
   }
 }

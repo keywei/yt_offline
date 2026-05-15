@@ -13,4 +13,20 @@ abstract interface class LibraryRepository {
     required String targetCategory,
     required int targetIndex,
   });
+
+  // ---- Category CRUD ----
+
+  /// Categories that exist either because the user pre-created them or
+  /// because a video uses them. Always includes [VideoMetadata.defaultCategory].
+  Future<List<String>> listCategories();
+
+  Future<void> addCategory(String name);
+
+  /// Rename `oldName` → `newName`. All videos with category == `oldName`
+  /// are updated. No-op for the default Uncategorized category.
+  Future<void> renameCategory(String oldName, String newName);
+
+  /// Delete `name` and move all its videos to Uncategorized. No-op for
+  /// the default Uncategorized category.
+  Future<void> deleteCategory(String name);
 }

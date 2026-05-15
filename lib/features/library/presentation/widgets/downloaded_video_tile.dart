@@ -7,20 +7,21 @@ import 'equalizer_indicator.dart';
 
 class DownloadedVideoTile extends StatelessWidget {
   final VideoMetadata meta;
-  /// Currently selected by the playback controller (this is THE active item).
+  /// Currently the active item in the playback queue.
   final bool isCurrent;
-  /// And actually playing right now (not paused). Drives the equalizer
-  /// animation; ignored when [isCurrent] is false.
+  /// And actively playing (not paused). Animates the equalizer.
   final bool isPlayingNow;
+  /// `null` = not in selection mode (default UI).
+  /// `true`/`false` = selection mode is on; show a checkbox.
+  final bool? selected;
   final VoidCallback? onTap;
-  final VoidCallback? onDelete;
 
   const DownloadedVideoTile({
     required this.meta,
     this.isCurrent = false,
     this.isPlayingNow = false,
+    this.selected,
     this.onTap,
-    this.onDelete,
     super.key,
   });
 
@@ -28,10 +29,14 @@ class DownloadedVideoTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final fileExists = File(meta.videoPath).existsSync();
+    final inSelection = selected != null;
+
     return Material(
-      color: isCurrent
+      color: (selected ?? false)
           ? theme.colorScheme.primaryContainer
-          : Colors.transparent,
+          : isCurrent
+              ? theme.colorScheme.primaryContainer
+              : Colors.transparent,
       child: ListTile(
         onTap: onTap,
         leading: ClipRRect(
@@ -58,6 +63,18 @@ class DownloadedVideoTile extends StatelessWidget {
                       size: 22,
                     ),
                   ),
+                if (inSelection)
+                  Container(
+                    color: Colors.black38,
+                    alignment: Alignment.center,
+                    child: Icon(
+                      (selected ?? false)
+                          ? Icons.check_circle
+                          : Icons.radio_button_unchecked,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -78,12 +95,6 @@ class DownloadedVideoTile extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        trailing: onDelete == null
-            ? null
-            : IconButton(
-                icon: const Icon(Icons.delete_outline),
-                onPressed: onDelete,
-              ),
       ),
     );
   }

@@ -62,6 +62,12 @@ class DownloadRepositoryImpl implements DownloadRepository {
     required String thumbnailUrl,
     required String category,
   }) async {
+    // Skip if the video is already on disk (metadata.json exists).
+    final metaFile = await _storage.metadataFile(videoId);
+    if (await metaFile.exists()) {
+      return const Err(AlreadyDownloadedFailure());
+    }
+
     // Phase A: insert a `preparing` job synchronously so the UI can show it.
     final prepId = 'prep:$videoId:${DateTime.now().microsecondsSinceEpoch}';
     _jobs[prepId] = DownloadJob(
