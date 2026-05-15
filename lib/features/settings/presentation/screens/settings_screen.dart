@@ -18,6 +18,9 @@ class SettingsScreen extends ConsumerWidget {
       appBar: AppBar(title: Text(s.tabSettings)),
       body: ListView(
         children: [
+          _section(context, s.theme),
+          _ThemeTile(s: s, current: prefs.themeMode),
+          const Divider(height: 1),
           _section(context, s.language),
           _LanguageTile(s: s, current: prefs.locale),
           const Divider(height: 1),
@@ -53,6 +56,61 @@ class SettingsScreen extends ConsumerWidget {
           style: Theme.of(context).textTheme.labelLarge,
         ),
       );
+}
+
+class _ThemeTile extends ConsumerWidget {
+  final S s;
+  final ThemeMode current;
+  const _ThemeTile({required this.s, required this.current});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    String label(ThemeMode m) => switch (m) {
+          ThemeMode.light => s.themeLight,
+          ThemeMode.dark => s.themeDark,
+          ThemeMode.system => s.themeSystem,
+        };
+    IconData icon(ThemeMode m) => switch (m) {
+          ThemeMode.light => Icons.light_mode,
+          ThemeMode.dark => Icons.dark_mode,
+          ThemeMode.system => Icons.brightness_auto,
+        };
+
+    return ListTile(
+      leading: Icon(icon(current)),
+      title: Text(s.theme),
+      subtitle: Text(label(current)),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () async {
+        final picked = await showModalBottomSheet<ThemeMode>(
+          context: context,
+          showDragHandle: true,
+          builder: (ctx) => SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final m in ThemeMode.values)
+                  ListTile(
+                    leading: Icon(icon(m)),
+                    title: Text(label(m)),
+                    trailing: m == current
+                        ? const Icon(Icons.check, color: Colors.amber)
+                        : null,
+                    onTap: () => Navigator.of(ctx).pop(m),
+                  ),
+              ],
+            ),
+          ),
+        );
+        if (picked != null) {
+          await ref
+              .read(appPreferencesProvider.notifier)
+              .setThemeMode(picked);
+        }
+      },
+    );
+  }
 }
 
 class _LanguageTile extends ConsumerWidget {
