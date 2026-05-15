@@ -11,9 +11,11 @@ import 'full_player.dart';
 /// libmpv's iOS render pipeline never has to re-attach a Texture (which is
 /// what stalls it).
 ///
-/// Expansion is driven by [nowPlayingExpandedProvider]: tapping the mini
-/// player body flips it true; the collapse arrow and Android back flip it
-/// back to false.
+/// Three layout modes share the same [FullPlayer]:
+///   - **collapsed portrait** — overlay slid off screen, mini bar visible
+///   - **expanded portrait** — slid up to fill the screen, drag-to-collapse
+///   - **landscape**         — covers everything including bottom nav, system
+///                             UI is hidden (YouTube-style fullscreen)
 class NowPlayingShell extends ConsumerStatefulWidget {
   final Widget child;
   const NowPlayingShell({required this.child, super.key});
@@ -25,6 +27,7 @@ class NowPlayingShell extends ConsumerStatefulWidget {
 class _NowPlayingShellState extends ConsumerState<NowPlayingShell>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
+  bool _wasLandscape = false;
 
   @override
   void initState() {
@@ -41,34 +44,68 @@ class _NowPlayingShellState extends ConsumerState<NowPlayingShell>
     super.dispose();
   }
 
-  void _applySystemUi(bool expanded) {
-    SystemChrome.setSystemUIOverlayStyle(
-      expanded
-          ? SystemUiOverlayStyle.light
-          : SystemUiOverlayStyle.dark,
-    );
+  void _applySystemUi({
+    required bool expanded,
+    required bool landscape,
+  }) {
+    if (landscape) {
+      // YouTube-style fullscreen: hide both status bar and nav buttons.
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    } else {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      SystemChrome.setSystemUIOverlayStyle(
+        expanded ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Drive the animation off the Riverpod flag so mini taps / back gestures /
-    // route-level openings (library auto-expand on first play) all flow
-    // through the same source of truth.
     ref.listen<bool>(nowPlayingExpandedProvider, (prev, next) {
       if (next) {
         _ctrl.forward();
       } else {
         _ctrl.reverse();
       }
-      _applySystemUi(next);
     });
 
     final expanded = ref.watch(nowPlayingExpandedProvider);
     final hasCurrent = ref.watch(
       playbackControllerProvider.select((s) => s.current != null),
     );
-    final screenHeight = MediaQuery.of(context).size.height;
+    final orientation = MediaQuery.orientationOf(context);
+    final isLandscape = orientation == Orientation.landscape && hasCurrent;
 
+    // Re-apply system UI whenever the relevant axes change.
+    if (isLandscape != _wasLandscape ||
+        _ctrl.status == AnimationStatus.forward) {
+      _wasLandscape = isLandscape;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _applySystemUi(expanded: expanded, landscape: isLandscape);
+      });
+    }
+
+    // Landscape: video takes the full screen, the rest of the app is hidden.
+    if (isLandscape) {
+      return PopScope(
+        // Let the system back gesture / button behave as usual (Android
+        // typically rotates back when the user does this from landscape).
+        canPop: !expanded,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop && expanded) {
+            ref.read(nowPlayingExpandedProvider.notifier).state = false;
+          }
+        },
+        child: FullPlayer(
+          landscape: true,
+          onCollapse: () =>
+              ref.read(nowPlayingExpandedProvider.notifier).state = false,
+        ),
+      );
+    }
+
+    // Portrait: child + sliding overlay (the existing behaviour).
+    final screenHeight = MediaQuery.of(context).size.height;
     return PopScope(
       canPop: !expanded,
       onPopInvokedWithResult: (didPop, _) {
@@ -79,9 +116,6 @@ class _NowPlayingShellState extends ConsumerState<NowPlayingShell>
       child: Stack(
         children: [
           widget.child,
-          // Always mount FullPlayer while there is a current video so the
-          // Video widget never unmounts. Positioned off-screen when
-          // collapsed; slides up to fill the screen when expanded.
           if (hasCurrent)
             AnimatedBuilder(
               animation: _ctrl,
@@ -93,14 +127,13 @@ class _NowPlayingShellState extends ConsumerState<NowPlayingShell>
                   top: top,
                   height: screenHeight,
                   child: IgnorePointer(
-                    // While the overlay is mostly off-screen, let taps fall
-                    // through to the mini bar / nav bar underneath.
                     ignoring: _ctrl.value < 0.5,
                     child: child!,
                   ),
                 );
               },
               child: FullPlayer(
+                landscape: false,
                 onCollapse: () => ref
                     .read(nowPlayingExpandedProvider.notifier)
                     .state = false,

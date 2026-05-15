@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -7,20 +9,57 @@ import '../state/playback_state.dart';
 import 'playback_speed_sheet.dart';
 import 'sleep_timer_sheet.dart';
 
-/// The expanded "Now Playing" surface. Renders the Video widget, scrubber,
-/// transport controls and the current queue. Designed to live permanently in
-/// the widget tree (inside [NowPlayingShell]) so the Video widget is never
-/// re-mounted — that re-mount is what stalls libmpv on iOS.
+/// The "Now Playing" surface. Renders the Video widget plus transport
+/// controls. Designed to live permanently in the widget tree (inside
+/// [NowPlayingShell]) so the Video widget is never re-mounted — that
+/// re-mount is what stalls libmpv on iOS.
+///
+/// When [landscape] is true, the layout becomes a YouTube-style fullscreen
+/// player: video fills the screen and the controls auto-hide.
 class FullPlayer extends ConsumerWidget {
   final VoidCallback onCollapse;
-  const FullPlayer({required this.onCollapse, super.key});
+  final bool landscape;
+
+  const FullPlayer({
+    required this.onCollapse,
+    this.landscape = false,
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(playbackControllerProvider);
     final controller = ref.read(playbackControllerProvider.notifier);
-    final current = state.current;
 
+    if (landscape) {
+      return _LandscapeLayout(
+        state: state,
+        controller: controller,
+        onCollapse: onCollapse,
+      );
+    }
+    return _PortraitLayout(
+      state: state,
+      controller: controller,
+      onCollapse: onCollapse,
+    );
+  }
+}
+
+class _PortraitLayout extends StatelessWidget {
+  final PlaybackState state;
+  final PlaybackController controller;
+  final VoidCallback onCollapse;
+
+  const _PortraitLayout({
+    required this.state,
+    required this.controller,
+    required this.onCollapse,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final current = state.current;
     return Material(
       color: Colors.black,
       child: SafeArea(
@@ -37,8 +76,6 @@ class FullPlayer extends ConsumerWidget {
               ),
             AspectRatio(
               aspectRatio: 16 / 9,
-              // pauseUponEnteringBackgroundMode is false because we want audio
-              // to keep playing when the app is sent to the background.
               child: Video(
                 controller: controller.videoController,
                 pauseUponEnteringBackgroundMode: false,
@@ -50,6 +87,255 @@ class FullPlayer extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// YouTube-style landscape layout: black canvas, video fills the screen,
+/// controls auto-hide after 3s of inactivity.
+class _LandscapeLayout extends StatefulWidget {
+  final PlaybackState state;
+  final PlaybackController controller;
+  final VoidCallback onCollapse;
+
+  const _LandscapeLayout({
+    required this.state,
+    required this.controller,
+    required this.onCollapse,
+  });
+
+  @override
+  State<_LandscapeLayout> createState() => _LandscapeLayoutState();
+}
+
+class _LandscapeLayoutState extends State<_LandscapeLayout> {
+  bool _overlayVisible = true;
+  Timer? _hideTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleHide();
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleHide() {
+    _hideTimer?.cancel();
+    if (!widget.state.isPlaying) return; // keep visible while paused
+    _hideTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      setState(() => _overlayVisible = false);
+    });
+  }
+
+  void _toggleOverlay() {
+    setState(() => _overlayVisible = !_overlayVisible);
+    if (_overlayVisible) _scheduleHide();
+  }
+
+  void _bumpHide() {
+    if (!_overlayVisible) {
+      setState(() => _overlayVisible = true);
+    }
+    _scheduleHide();
+  }
+
+  @override
+  void didUpdateWidget(covariant _LandscapeLayout old) {
+    super.didUpdateWidget(old);
+    if (widget.state.isPlaying != old.state.isPlaying) {
+      _scheduleHide();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
+    final controller = widget.controller;
+    final current = state.current;
+    return Material(
+      color: Colors.black,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _toggleOverlay,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Video stretched to fill the screen.
+            Video(
+              controller: controller.videoController,
+              pauseUponEnteringBackgroundMode: false,
+              fit: BoxFit.contain,
+            ),
+            AnimatedOpacity(
+              opacity: _overlayVisible ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 200),
+              child: IgnorePointer(
+                ignoring: !_overlayVisible,
+                child: _LandscapeOverlay(
+                  state: state,
+                  controller: controller,
+                  title: current?.title ?? '',
+                  onCollapse: widget.onCollapse,
+                  onAnyInteraction: _bumpHide,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LandscapeOverlay extends StatelessWidget {
+  final PlaybackState state;
+  final PlaybackController controller;
+  final String title;
+  final VoidCallback onCollapse;
+  final VoidCallback onAnyInteraction;
+
+  const _LandscapeOverlay({
+    required this.state,
+    required this.controller,
+    required this.title,
+    required this.onCollapse,
+    required this.onAnyInteraction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.black.withValues(alpha: 0.5),
+            Colors.black.withValues(alpha: 0.0),
+            Colors.black.withValues(alpha: 0.0),
+            Colors.black.withValues(alpha: 0.5),
+          ],
+          stops: const [0.0, 0.2, 0.7, 1.0],
+        ),
+      ),
+      child: SafeArea(
+        child: Column(
+          children: [
+            _TopBar(
+              title: title,
+              onCollapse: () {
+                onAnyInteraction();
+                onCollapse();
+              },
+            ),
+            const Spacer(),
+            // Centre transport row, large hit targets.
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _BigIcon(
+                  icon: Icons.skip_previous,
+                  size: 44,
+                  onPressed: () {
+                    onAnyInteraction();
+                    controller.previous();
+                  },
+                ),
+                _BigIcon(
+                  icon: state.isPlaying
+                      ? Icons.pause_circle
+                      : Icons.play_circle,
+                  size: 72,
+                  onPressed: () {
+                    onAnyInteraction();
+                    controller.togglePlayPause();
+                  },
+                ),
+                _BigIcon(
+                  icon: Icons.skip_next,
+                  size: 44,
+                  onPressed: () {
+                    onAnyInteraction();
+                    controller.next();
+                  },
+                ),
+              ],
+            ),
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: _Scrubber(state: state, controller: controller),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(
+                      Icons.speed,
+                      color: Colors.white,
+                    ),
+                    onPressed: () {
+                      onAnyInteraction();
+                      PlaybackSpeedSheet.show(context);
+                    },
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      state.hasSleepTimer
+                          ? Icons.bedtime
+                          : Icons.bedtime_outlined,
+                      color: Colors.white,
+                    ),
+                    onPressed: () {
+                      onAnyInteraction();
+                      SleepTimerSheet.show(context);
+                    },
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    tooltip: 'Exit fullscreen',
+                    icon: const Icon(
+                      Icons.fullscreen_exit,
+                      color: Colors.white,
+                    ),
+                    onPressed: () {
+                      onAnyInteraction();
+                      onCollapse();
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BigIcon extends StatelessWidget {
+  final IconData icon;
+  final double size;
+  final VoidCallback onPressed;
+  const _BigIcon({
+    required this.icon,
+    required this.size,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      iconSize: size,
+      icon: Icon(icon, color: Colors.white),
+      onPressed: onPressed,
     );
   }
 }
