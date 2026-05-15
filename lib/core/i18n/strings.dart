@@ -183,6 +183,22 @@ class S {
   String filterActiveBadge(int n) =>
       _pick('$n filter${n == 1 ? '' : 's'}', '已套用 $n 項');
 
+  // ---- Subtitle settings ----
+  String get subtitlesSectionTitle => _pick('Subtitles', '字幕');
+  String get subtitleSettingsTitle =>
+      _pick('Subtitle appearance', '字幕外觀');
+  String get subtitlePreview => _pick('Preview', '預覽');
+  String get subtitlePreviewText =>
+      _pick('The quick brown fox jumps over the lazy dog', '字幕外觀預覽範例');
+  String get subtitleFontSizeLabel => _pick('Font size', '字體大小');
+  String get subtitleColorLabel => _pick('Color', '顏色');
+  String get subtitleBackgroundLabel =>
+      _pick('Background opacity', '背景透明度');
+  String get subtitlePositionLabel => _pick('Vertical position', '垂直位置');
+  String get subtitlePosTop => _pick('Top', '上');
+  String get subtitlePosMiddle => _pick('Middle', '中');
+  String get subtitlePosBottom => _pick('Bottom', '下');
+
   // ---- Misc ----
   String get loading => _pick('Loading…', '載入中…');
 }

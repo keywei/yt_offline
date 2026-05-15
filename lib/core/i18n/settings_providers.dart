@@ -27,6 +27,23 @@ class AppPreferencesNotifier extends AsyncNotifier<AppPreferences> {
     state = AsyncData(updated);
     await ref.read(preferencesStoreProvider).save(updated);
   }
+
+  Future<void> setSubtitleStyle({
+    double? fontSize,
+    int? colorArgb,
+    double? backgroundAlpha,
+    int? position,
+  }) async {
+    final current = state.valueOrNull ?? AppPreferences.defaults;
+    final updated = current.copyWith(
+      subtitleFontSize: fontSize,
+      subtitleColorArgb: colorArgb,
+      subtitleBackgroundAlpha: backgroundAlpha,
+      subtitlePosition: position,
+    );
+    state = AsyncData(updated);
+    await ref.read(preferencesStoreProvider).save(updated);
+  }
 }
 
 final appPreferencesProvider =

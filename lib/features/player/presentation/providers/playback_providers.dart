@@ -6,6 +6,8 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../../../../core/i18n/settings_providers.dart';
+import '../../../../core/storage/preferences_store.dart';
 import '../../../../core/storage/video_metadata.dart';
 import '../../../../main.dart' show mediaSessionHandler;
 import '../../../download/presentation/providers/download_providers.dart';
@@ -108,6 +110,15 @@ class PlaybackController extends Notifier<PlaybackState> {
       libraryListProvider,
       (prev, next) {
         next.whenData(_resyncQueueFromLibrary);
+      },
+    );
+
+    // Live-apply subtitle styling whenever the user changes a value in
+    // Settings → Subtitles. _openCurrent re-applies on every open() too.
+    ref.listen<AsyncValue<AppPreferences>>(
+      appPreferencesProvider,
+      (prev, next) {
+        next.whenData(_applySubtitleStyle);
       },
     );
 
@@ -338,6 +349,12 @@ class PlaybackController extends Notifier<PlaybackState> {
     if (v.subtitlePath != null) {
       await player.setSubtitleTrack(SubtitleTrack.uri(v.subtitlePath!));
     }
+    // libmpv resets sub properties on every file open, so push the current
+    // preference snapshot through after every successful open().
+    final prefs = ref.read(appPreferencesProvider).valueOrNull;
+    if (prefs != null) {
+      await _applySubtitleStyle(prefs);
+    }
     if (state.playbackRate != 1.0) {
       await player.setRate(state.playbackRate);
     }
@@ -347,6 +364,29 @@ class PlaybackController extends Notifier<PlaybackState> {
     }
     // Tell the OS what's playing so the lock screen shows title + art.
     mediaSessionHandler.publishMediaItem(v);
+  }
+
+  Future<void> _applySubtitleStyle(AppPreferences prefs) async {
+    if (_player == null) return;
+    // The public Player class doesn't expose libmpv property writes — only
+    // the native backend does. Cast through to NativePlayer; on Android +
+    // iOS the platform is always NativePlayer (see media_kit's Player ctor).
+    final native = _player!.platform;
+    if (native is! NativePlayer) return;
+    try {
+      await native.setProperty(
+        'sub-font-size',
+        prefs.subtitleFontSize.toString(),
+      );
+      await native.setProperty('sub-color', prefs.subtitleColorHex);
+      await native.setProperty('sub-back-color', prefs.subtitleBackgroundHex);
+      await native.setProperty(
+        'sub-pos',
+        prefs.subtitlePosition.toString(),
+      );
+    } catch (_) {
+      // setProperty can race with file open before mpv is ready; ignore.
+    }
   }
 
   void _publishToMediaSession() {

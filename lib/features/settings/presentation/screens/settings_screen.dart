@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../../core/i18n/settings_providers.dart';
 import '../../../../core/i18n/strings.dart';
+import '../../../../core/router/app_router.dart';
 import '../../../../core/storage/preferences_store.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -23,6 +25,16 @@ class SettingsScreen extends ConsumerWidget {
           const Divider(height: 1),
           _section(context, s.language),
           _LanguageTile(s: s, current: prefs.locale),
+          const Divider(height: 1),
+          _section(context, s.subtitlesSectionTitle),
+          ListTile(
+            leading: const Icon(Icons.subtitles_outlined),
+            title: Text(s.subtitleSettingsTitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.go(
+              '${Routes.settings}/${Routes.subtitleSettings}',
+            ),
+          ),
           const Divider(height: 1),
           _section(context, 'About'),
           FutureBuilder<PackageInfo>(
