@@ -65,6 +65,7 @@ class PlaybackController extends Notifier<PlaybackState> {
       }),
       p.stream.position.listen((d) {
         state = state.copyWith(position: d);
+        _enforceABLoop(d);
         unawaited(_persistPosition());
         _publishToMediaSession();
       }),
@@ -200,6 +201,41 @@ class PlaybackController extends Notifier<PlaybackState> {
   void cycleLoopMode() => state = state.copyWith(loop: state.loop.next);
 
   void toggleShuffle() => state = state.copyWith(shuffle: !state.shuffle);
+
+  // ---- A-B segment loop ----
+
+  /// Marks the current playback position as A. Pass an explicit [at] to
+  /// seed from a scrubber drag instead. If a B point already exists and
+  /// the new A is past it, B is cleared so the user can re-pick it.
+  void setLoopA([Duration? at]) {
+    final point = at ?? state.position;
+    final newB = (state.loopB != null && state.loopB! <= point)
+        ? null
+        : state.loopB;
+    state = state.copyWith(loopA: point, loopB: newB);
+  }
+
+  void setLoopB([Duration? at]) {
+    final point = at ?? state.position;
+    // B before A makes no sense — drop the old A so the user can re-pick.
+    final newA = (state.loopA != null && state.loopA! >= point)
+        ? null
+        : state.loopA;
+    state = state.copyWith(loopA: newA, loopB: point);
+  }
+
+  void clearLoopAB() {
+    state = state.copyWith(loopA: null, loopB: null);
+  }
+
+  void _enforceABLoop(Duration pos) {
+    if (!state.hasActiveABLoop) return;
+    if (pos < state.loopB!) return;
+    // Use seek directly so we don't trip the same listener recursively
+    // before we've cleared position — media_kit's seek will emit a new
+    // position which will already be inside the loop window.
+    unawaited(player.seek(state.loopA!));
+  }
 
   Future<void> jumpTo(int index) async {
     if (index < 0 || index >= state.queue.length) return;
@@ -345,6 +381,10 @@ class PlaybackController extends Notifier<PlaybackState> {
   Future<void> _openCurrent() async {
     final v = state.current;
     if (v == null) return;
+    // A new track invalidates the previous A-B selection.
+    if (state.loopA != null || state.loopB != null) {
+      state = state.copyWith(loopA: null, loopB: null);
+    }
     await player.open(Media(v.videoPath));
     if (v.subtitlePath != null) {
       await player.setSubtitleTrack(SubtitleTrack.uri(v.subtitlePath!));

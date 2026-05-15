@@ -38,6 +38,12 @@ class PlaybackState {
   /// Current playback rate. 1.0 = normal speed.
   final double playbackRate;
 
+  /// A-B segment loop endpoints. When both are set and `loopA < loopB`,
+  /// playback wraps from B back to A. Cleared automatically on track
+  /// change. Session-scoped — not persisted.
+  final Duration? loopA;
+  final Duration? loopB;
+
   const PlaybackState({
     this.queue = const [],
     this.index = -1,
@@ -49,11 +55,17 @@ class PlaybackState {
     this.sleepRemaining,
     this.sleepAtEndOfTrack = false,
     this.playbackRate = 1.0,
+    this.loopA,
+    this.loopB,
   });
 
   bool get hasCurrent => index >= 0 && index < queue.length;
   VideoMetadata? get current => hasCurrent ? queue[index] : null;
   bool get hasSleepTimer => sleepRemaining != null || sleepAtEndOfTrack;
+
+  /// Both endpoints set and ordered — only then does the loop fire.
+  bool get hasActiveABLoop =>
+      loopA != null && loopB != null && loopA! < loopB!;
 
   PlaybackState copyWith({
     List<VideoMetadata>? queue,
@@ -66,6 +78,8 @@ class PlaybackState {
     Object? sleepRemaining = _unchanged,
     bool? sleepAtEndOfTrack,
     double? playbackRate,
+    Object? loopA = _unchanged,
+    Object? loopB = _unchanged,
   }) =>
       PlaybackState(
         queue: queue ?? this.queue,
@@ -80,5 +94,7 @@ class PlaybackState {
             : sleepRemaining as Duration?,
         sleepAtEndOfTrack: sleepAtEndOfTrack ?? this.sleepAtEndOfTrack,
         playbackRate: playbackRate ?? this.playbackRate,
+        loopA: identical(loopA, _unchanged) ? this.loopA : loopA as Duration?,
+        loopB: identical(loopB, _unchanged) ? this.loopB : loopB as Duration?,
       );
 }

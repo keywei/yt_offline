@@ -365,6 +365,35 @@ class _LandscapeOverlay extends StatelessWidget {
                       SleepTimerSheet.show(context);
                     },
                   ),
+                  _ABPill(
+                    label: S.of(context).abPointA,
+                    time: state.loopA,
+                    active: state.loopA != null,
+                    onPressed: () {
+                      onAnyInteraction();
+                      controller.setLoopA();
+                    },
+                  ),
+                  _ABPill(
+                    label: S.of(context).abPointB,
+                    time: state.loopB,
+                    active: state.loopB != null,
+                    onPressed: () {
+                      onAnyInteraction();
+                      controller.setLoopB();
+                    },
+                  ),
+                  if (state.loopA != null || state.loopB != null)
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      tooltip: S.of(context).abClear,
+                      icon: const Icon(Icons.close,
+                          color: Colors.white70, size: 18),
+                      onPressed: () {
+                        onAnyInteraction();
+                        controller.clearLoopAB();
+                      },
+                    ),
                   const Spacer(),
                   IconButton(
                     tooltip: S.of(context).exitFullscreen,
@@ -454,11 +483,33 @@ class _Scrubber extends StatelessWidget {
         children: [
           Text(_fmt(state.position), style: _timeStyle),
           Expanded(
-            child: Slider(
-              value: pos.clamp(0, maxV),
-              max: maxV,
-              onChanged: (v) =>
-                  controller.seek(Duration(milliseconds: v.toInt())),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // A-B loop range strip painted underneath the slider thumb.
+                if (dur > 0 && (state.loopA != null || state.loopB != null))
+                  Positioned.fill(
+                    child: LayoutBuilder(
+                      builder: (context, c) {
+                        final a = (state.loopA?.inMilliseconds ?? 0) / dur;
+                        final b = (state.loopB?.inMilliseconds ?? dur) / dur;
+                        return CustomPaint(
+                          painter: _LoopRangePainter(
+                            startFraction: a.clamp(0, 1).toDouble(),
+                            endFraction: b.clamp(0, 1).toDouble(),
+                            hasBoth: state.hasActiveABLoop,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                Slider(
+                  value: pos.clamp(0, maxV),
+                  max: maxV,
+                  onChanged: (v) =>
+                      controller.seek(Duration(milliseconds: v.toInt())),
+                ),
+              ],
             ),
           ),
           Text(_fmt(state.duration), style: _timeStyle),
@@ -474,6 +525,42 @@ class _Scrubber extends StatelessWidget {
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$m:$s';
   }
+}
+
+class _LoopRangePainter extends CustomPainter {
+  final double startFraction;
+  final double endFraction;
+  final bool hasBoth;
+  _LoopRangePainter({
+    required this.startFraction,
+    required this.endFraction,
+    required this.hasBoth,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // The Slider's track sits at vertical centre. Sliders also reserve
+    // ~24px of padding at each horizontal edge for the thumb — match that
+    // so the painted range lines up with the time the user actually
+    // selected.
+    const horizontalPadding = 24.0;
+    final trackY = size.height / 2;
+    final usable = size.width - horizontalPadding * 2;
+    if (usable <= 0) return;
+    final startX = horizontalPadding + usable * startFraction;
+    final endX = horizontalPadding + usable * endFraction;
+    final rangePaint = Paint()
+      ..color = (hasBoth ? Colors.amber : Colors.amber.withValues(alpha: 0.4))
+      ..strokeWidth = 6
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(Offset(startX, trackY), Offset(endX, trackY), rangePaint);
+  }
+
+  @override
+  bool shouldRepaint(_LoopRangePainter old) =>
+      old.startFraction != startFraction ||
+      old.endFraction != endFraction ||
+      old.hasBoth != hasBoth;
 }
 
 class _Controls extends StatelessWidget {
@@ -542,11 +629,96 @@ class _Controls extends StatelessWidget {
             children: [
               _SpeedButton(state: state),
               _SleepTimerButton(state: state),
+              _ABLoopControls(state: state, controller: controller),
             ],
           ),
         ],
       ),
     );
+  }
+}
+
+class _ABLoopControls extends StatelessWidget {
+  final PlaybackState state;
+  final PlaybackController controller;
+  const _ABLoopControls({required this.state, required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final aSet = state.loopA != null;
+    final bSet = state.loopB != null;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _ABPill(
+          label: s.abPointA,
+          time: state.loopA,
+          active: aSet,
+          onPressed: () => controller.setLoopA(),
+        ),
+        const SizedBox(width: 4),
+        _ABPill(
+          label: s.abPointB,
+          time: state.loopB,
+          active: bSet,
+          onPressed: () => controller.setLoopB(),
+        ),
+        if (aSet || bSet)
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            tooltip: s.abClear,
+            icon: const Icon(Icons.close, color: Colors.white70, size: 18),
+            onPressed: controller.clearLoopAB,
+          ),
+      ],
+    );
+  }
+}
+
+class _ABPill extends StatelessWidget {
+  final String label;
+  final Duration? time;
+  final bool active;
+  final VoidCallback onPressed;
+
+  const _ABPill({
+    required this.label,
+    required this.time,
+    required this.active,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active ? Colors.amber : Colors.white70;
+    return TextButton(
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        minimumSize: const Size(0, 32),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      onPressed: onPressed,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: TextStyle(color: color, fontSize: 12)),
+          if (time != null) ...[
+            const SizedBox(width: 4),
+            Text(
+              _fmt(time!),
+              style: TextStyle(color: color, fontSize: 11),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static String _fmt(Duration d) {
+    final m = d.inMinutes.toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
   }
 }
 

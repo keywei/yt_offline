@@ -199,6 +199,11 @@ class S {
   String get subtitlePosMiddle => _pick('Middle', '中');
   String get subtitlePosBottom => _pick('Bottom', '下');
 
+  // ---- A-B segment loop ----
+  String get abPointA => _pick('A', 'A');
+  String get abPointB => _pick('B', 'B');
+  String get abClear => _pick('Clear A-B loop', '清除 A-B 循環');
+
   // ---- Misc ----
   String get loading => _pick('Loading…', '載入中…');
 }
