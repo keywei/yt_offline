@@ -23,6 +23,9 @@ class PlaybackController extends Notifier<PlaybackState> {
   bool _bgInitialized = false;
   bool _bgEnabled = false;
 
+  Timer? _sleepFireTimer;
+  Timer? _sleepTickTimer;
+
   Player get player {
     if (_player == null) _ensurePlayer();
     return _player!;
@@ -64,6 +67,7 @@ class PlaybackController extends Notifier<PlaybackState> {
       for (final s in _subs) {
         s.cancel();
       }
+      _cancelSleepTimers();
       _player?.dispose();
       WakelockPlus.disable();
       if (_bgEnabled) {
@@ -142,15 +146,64 @@ class PlaybackController extends Notifier<PlaybackState> {
     state = state.copyWith(queue: newQueue, index: newIndex);
   }
 
+  // ---- Sleep timer ----
+
+  /// Start a sleep timer that pauses playback after [duration]. Pass null
+  /// to cancel. Mutually exclusive with [setSleepAtEndOfTrack].
+  void setSleepTimer(Duration? duration) {
+    _cancelSleepTimers();
+    if (duration == null || duration == Duration.zero) {
+      state = state.copyWith(
+        sleepRemaining: null,
+        sleepAtEndOfTrack: false,
+      );
+      return;
+    }
+    final fireAt = DateTime.now().add(duration);
+    _sleepFireTimer = Timer(duration, () async {
+      await player.pause();
+      _cancelSleepTimers();
+      state = state.copyWith(sleepRemaining: null);
+    });
+    _sleepTickTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      final remaining = fireAt.difference(DateTime.now());
+      if (remaining.isNegative) return;
+      state = state.copyWith(sleepRemaining: remaining);
+    });
+    state = state.copyWith(
+      sleepRemaining: duration,
+      sleepAtEndOfTrack: false,
+    );
+  }
+
+  /// Toggle "pause at end of current track" mode. Cancels any countdown.
+  void setSleepAtEndOfTrack(bool enabled) {
+    _cancelSleepTimers();
+    state = state.copyWith(
+      sleepRemaining: null,
+      sleepAtEndOfTrack: enabled,
+    );
+  }
+
+  void _cancelSleepTimers() {
+    _sleepFireTimer?.cancel();
+    _sleepTickTimer?.cancel();
+    _sleepFireTimer = null;
+    _sleepTickTimer = null;
+  }
+
   /// Stop playback, clear the queue, release the background service.
   /// Mini player auto-hides because `state.current` becomes null.
   Future<void> stop() async {
+    _cancelSleepTimers();
     await player.stop();
     state = state.copyWith(
       queue: const [],
       index: -1,
       position: Duration.zero,
       duration: Duration.zero,
+      sleepRemaining: null,
+      sleepAtEndOfTrack: false,
     );
     if (_bgEnabled) {
       try {
@@ -204,6 +257,12 @@ class PlaybackController extends Notifier<PlaybackState> {
   }
 
   void _autoAdvance() {
+    // Honour the "stop at end of current track" sleep mode: don't advance,
+    // just clear the flag.
+    if (state.sleepAtEndOfTrack) {
+      state = state.copyWith(sleepAtEndOfTrack: false);
+      return;
+    }
     final n = _pickNext();
     if (n == null) return;
     state = state.copyWith(index: n);

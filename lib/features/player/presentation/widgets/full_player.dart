@@ -4,6 +4,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 import '../providers/playback_providers.dart';
 import '../state/playback_state.dart';
+import 'sleep_timer_sheet.dart';
 
 /// The expanded "Now Playing" surface. Renders the Video widget, scrubber,
 /// transport controls and the current queue. Designed to live permanently in
@@ -129,54 +130,107 @@ class _Controls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-            tooltip: 'Shuffle',
-            icon: Icon(
-              Icons.shuffle,
-              color: state.shuffle ? Colors.amber : Colors.white70,
-            ),
-            onPressed: controller.toggleShuffle,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              IconButton(
+                tooltip: 'Shuffle',
+                icon: Icon(
+                  Icons.shuffle,
+                  color: state.shuffle ? Colors.amber : Colors.white70,
+                ),
+                onPressed: controller.toggleShuffle,
+              ),
+              IconButton(
+                iconSize: 36,
+                tooltip: 'Previous',
+                icon: const Icon(Icons.skip_previous, color: Colors.white),
+                onPressed: controller.previous,
+              ),
+              IconButton(
+                iconSize: 56,
+                tooltip: state.isPlaying ? 'Pause' : 'Play',
+                icon: Icon(
+                  state.isPlaying ? Icons.pause_circle : Icons.play_circle,
+                  color: Colors.white,
+                ),
+                onPressed: controller.togglePlayPause,
+              ),
+              IconButton(
+                iconSize: 36,
+                tooltip: 'Next',
+                icon: const Icon(Icons.skip_next, color: Colors.white),
+                onPressed: controller.next,
+              ),
+              IconButton(
+                tooltip: 'Loop: ${state.loop.name}',
+                icon: Icon(
+                  switch (state.loop) {
+                    LoopMode.off => Icons.repeat,
+                    LoopMode.all => Icons.repeat_on,
+                    LoopMode.one => Icons.repeat_one_on,
+                  },
+                  color: state.loop == LoopMode.off
+                      ? Colors.white70
+                      : Colors.amber,
+                ),
+                onPressed: controller.cycleLoopMode,
+              ),
+            ],
           ),
-          IconButton(
-            iconSize: 36,
-            tooltip: 'Previous',
-            icon: const Icon(Icons.skip_previous, color: Colors.white),
-            onPressed: controller.previous,
-          ),
-          IconButton(
-            iconSize: 56,
-            tooltip: state.isPlaying ? 'Pause' : 'Play',
-            icon: Icon(
-              state.isPlaying ? Icons.pause_circle : Icons.play_circle,
-              color: Colors.white,
-            ),
-            onPressed: controller.togglePlayPause,
-          ),
-          IconButton(
-            iconSize: 36,
-            tooltip: 'Next',
-            icon: const Icon(Icons.skip_next, color: Colors.white),
-            onPressed: controller.next,
-          ),
-          IconButton(
-            tooltip: 'Loop: ${state.loop.name}',
-            icon: Icon(
-              switch (state.loop) {
-                LoopMode.off => Icons.repeat,
-                LoopMode.all => Icons.repeat_on,
-                LoopMode.one => Icons.repeat_one_on,
-              },
-              color: state.loop == LoopMode.off ? Colors.white70 : Colors.amber,
-            ),
-            onPressed: controller.cycleLoopMode,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _SleepTimerButton(state: state),
+            ],
           ),
         ],
       ),
     );
+  }
+}
+
+class _SleepTimerButton extends StatelessWidget {
+  final PlaybackState state;
+  const _SleepTimerButton({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final active = state.hasSleepTimer;
+    final label = state.sleepAtEndOfTrack
+        ? 'End of track'
+        : state.sleepRemaining == null
+            ? 'Sleep'
+            : _formatRemaining(state.sleepRemaining!);
+    return TextButton.icon(
+      onPressed: () => SleepTimerSheet.show(context),
+      icon: Icon(
+        active ? Icons.bedtime : Icons.bedtime_outlined,
+        size: 18,
+        color: active ? Colors.amber : Colors.white70,
+      ),
+      label: Text(
+        label,
+        style: TextStyle(
+          color: active ? Colors.amber : Colors.white70,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  String _formatRemaining(Duration d) {
+    if (d.inHours > 0) {
+      final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+      return '${d.inHours}:$m';
+    }
+    final m = d.inMinutes;
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
   }
 }
 
