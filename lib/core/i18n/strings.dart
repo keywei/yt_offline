@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 
+import '../storage/video_metadata.dart';
+
 /// Supported app languages. The order here drives the Settings picker.
 const supportedLocales = <Locale>[
   Locale('en'),
@@ -64,6 +66,12 @@ class S {
       _pick('Download into category', '下載到分類');
   String get newCategoryHint => _pick('New category name', '新分類名稱');
   String get defaultCategory => _pick('Uncategorized', '未分類');
+
+  /// Wraps display of an arbitrary category name so the special
+  /// [VideoMetadata.defaultCategory] sentinel renders in the current
+  /// locale instead of leaking the raw English storage key.
+  String displayCategory(String raw) =>
+      raw == VideoMetadata.defaultCategory ? defaultCategory : raw;
 
   // ---- Library ----
   String get libraryEmpty => _pick(

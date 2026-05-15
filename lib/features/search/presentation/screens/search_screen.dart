@@ -189,7 +189,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  s.preparingItem(what, category),
+                  s.preparingItem(what, s.displayCategory(category)),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),

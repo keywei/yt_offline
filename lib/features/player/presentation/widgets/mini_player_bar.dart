@@ -77,7 +77,7 @@ class MiniPlayerBar extends ConsumerWidget {
                                   style: theme.textTheme.bodyMedium,
                                 ),
                                 Text(
-                                  '${current.author} • ${current.category}',
+                                  '${current.author} • ${S.of(context).displayCategory(current.category)}',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: theme.textTheme.bodySmall,

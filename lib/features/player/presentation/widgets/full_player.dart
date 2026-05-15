@@ -115,7 +115,7 @@ class _PortraitLayout extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Text(
-                  '${current.category} • ${state.index + 1} / ${state.queue.length}',
+                  '${S.of(context).displayCategory(current.category)} • ${state.index + 1} / ${state.queue.length}',
                   style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
               ),

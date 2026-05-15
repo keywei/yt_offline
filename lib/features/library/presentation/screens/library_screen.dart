@@ -154,7 +154,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     targetIndex: (grouped[cat] ?? const []).length,
                   ),
                   child: _SectionHeader(
-                    text: '$cat (${(grouped[cat] ?? const []).length})',
+                    text: '${s.displayCategory(cat)} (${(grouped[cat] ?? const []).length})',
                     collapsed: collapsed.contains(cat),
                     onTap: () => _toggleCollapsed(cat),
                     onLongPress: cat == VideoMetadata.defaultCategory
@@ -571,7 +571,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       ? Icons.inbox_outlined
                       : Icons.folder_outlined,
                 ),
-                title: Text(c),
+                title: Text(S.of(ctx).displayCategory(c)),
                 onTap: () => Navigator.of(ctx).pop(c),
               ),
             ),
@@ -785,7 +785,7 @@ class _ActiveJobTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${job.category} • ${_statusLabel(s, job.status)}'
+                  '${s.displayCategory(job.category)} • ${_statusLabel(s, job.status)}'
                   '${job.status == DownloadStatus.running ? ' ${(job.progress * 100).toStringAsFixed(0)}%' : ''}',
                   style: theme.textTheme.bodySmall,
                 ),
