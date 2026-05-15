@@ -9,6 +9,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:screen_brightness/screen_brightness.dart';
 
 import '../../../../core/i18n/strings.dart';
+import '../../../../core/pip/pip_controller.dart';
 import '../providers/playback_providers.dart';
 import '../state/playback_state.dart';
 import 'playback_speed_sheet.dart';
@@ -644,6 +645,24 @@ class _LandscapeOverlay extends StatelessWidget {
                       },
                     ),
                   const Spacer(),
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final supported =
+                          ref.watch(pipSupportedProvider).valueOrNull ?? false;
+                      if (!supported) return const SizedBox.shrink();
+                      return IconButton(
+                        tooltip: S.of(context).pipEnter,
+                        icon: const Icon(
+                          Icons.picture_in_picture_alt,
+                          color: Colors.white,
+                        ),
+                        onPressed: () {
+                          onAnyInteraction();
+                          ref.read(pipControllerProvider).enter();
+                        },
+                      );
+                    },
+                  ),
                   IconButton(
                     tooltip: S.of(context).exitFullscreen,
                     icon: const Icon(

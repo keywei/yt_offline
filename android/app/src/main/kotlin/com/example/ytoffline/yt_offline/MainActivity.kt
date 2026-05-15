@@ -5,13 +5,17 @@ package com.example.ytoffline.yt_offline
 // causes audio_service.init to throw with "The Activity class declared in
 // your AndroidManifest.xml is wrong or has not provided the correct
 // FlutterEngine".
+import android.app.PictureInPictureParams
 import android.content.Intent
+import android.os.Build
+import android.util.Rational
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : AudioServiceActivity() {
     private val shareChannelName = "yt_offline/share"
+    private val pipChannelName = "yt_offline/pip"
     private var shareChannel: MethodChannel? = null
 
     /// URL or plain text pulled out of the launching intent. Cleared
@@ -36,10 +40,44 @@ class MainActivity : AudioServiceActivity() {
                 else -> result.notImplemented()
             }
         }
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            pipChannelName,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "isSupported" -> result.success(
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                )
+                "enter" -> result.success(enterPipIfPossible())
+                else -> result.notImplemented()
+            }
+        }
         // The very first onCreate runs before the engine is wired, so the
         // initial-intent value sits in `pendingShare` waiting for Dart to
         // pull it via getInitial.
         pendingShare = extractShare(intent) ?: pendingShare
+    }
+
+    /// Requests the system to put the activity into PiP. Returns true if
+    /// the request was issued; the system still gets to refuse based on
+    /// device / OEM policy. PictureInPictureParams was added in API 26 —
+    /// older devices fall through to the boolean overload from API 24, or
+    /// no-op below that.
+    private fun enterPipIfPossible(): Boolean {
+        return when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.O -> {
+                val params = PictureInPictureParams.Builder()
+                    .setAspectRatio(Rational(16, 9))
+                    .build()
+                enterPictureInPictureMode(params)
+            }
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.N -> {
+                @Suppress("DEPRECATION")
+                enterPictureInPictureMode()
+                true
+            }
+            else -> false
+        }
     }
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {

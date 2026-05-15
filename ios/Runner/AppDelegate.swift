@@ -8,6 +8,11 @@ import UIKit
   private static let orientationChannelName = "yt_offline/orientation"
   /// Shared with the Dart `ShareIntake` service.
   private static let shareChannelName = "yt_offline/share"
+  /// PiP channel. media_kit on iOS uses libmpv (CoreAudio + a custom
+  /// surface) instead of AVPlayer, so the AVPictureInPictureController
+  /// path doesn't apply. We answer the same channel but report
+  /// `isSupported = false` and ignore `enter`.
+  private static let pipChannelName = "yt_offline/pip"
 
   /// URL captured from `application(_:open:)` before the engine attached.
   /// Cleared on `getInitial`.
@@ -65,6 +70,18 @@ import UIKit
       result(v)
     }
     shareChannel = share
+
+    let pip = FlutterMethodChannel(
+      name: AppDelegate.pipChannelName,
+      binaryMessenger: engineBridge.applicationRegistrar.messenger()
+    )
+    pip.setMethodCallHandler { call, result in
+      switch call.method {
+      case "isSupported": result(false)
+      case "enter": result(false)
+      default: result(FlutterMethodNotImplemented)
+      }
+    }
   }
 
   // MARK: - Orientation forcing

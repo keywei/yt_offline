@@ -251,6 +251,10 @@ class S {
   String relTimeDaysAgo(int n) =>
       _pick('$n day${n == 1 ? '' : 's'} ago', '$n 天前');
 
+  // ---- Picture-in-Picture ----
+  String get pipEnter =>
+      _pick('Picture in Picture', '子母畫面');
+
   // ---- Misc ----
   String get loading => _pick('Loading…', '載入中…');
 }
