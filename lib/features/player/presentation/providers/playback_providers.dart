@@ -1,29 +1,27 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart';
-import 'package:flutter_background/flutter_background.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../../../core/storage/video_metadata.dart';
+import '../../../../main.dart' show mediaSessionHandler;
 import '../../../download/presentation/providers/download_providers.dart';
 import '../../../library/presentation/providers/library_providers.dart';
 import '../state/playback_state.dart';
 
 /// Long-lived [Player] + [VideoController]. Lives in the root ProviderScope
-/// so audio survives screen navigation. A foreground service (managed via
-/// `flutter_background`) is started on first play so Android keeps the
-/// process alive when the app is backgrounded.
+/// so audio survives screen navigation. Background playback is handled by
+/// `audio_service` (see `MediaSessionHandler`): it runs the foreground
+/// service on Android and configures AVAudioSession on iOS, and surfaces
+/// lock-screen / notification / headset / CarPlay controls on both.
 class PlaybackController extends Notifier<PlaybackState> {
   Player? _player;
   VideoController? _videoController;
   final _subs = <StreamSubscription<dynamic>>[];
   final _random = Random();
-  bool _bgInitialized = false;
-  bool _bgEnabled = false;
 
   Timer? _sleepFireTimer;
   Timer? _sleepTickTimer;
@@ -59,16 +57,19 @@ class PlaybackController extends Notifier<PlaybackState> {
         state = state.copyWith(isPlaying: v);
         WakelockPlus.toggle(enable: v);
         if (!v) {
-          // Save immediately on pause so the user doesn't lose the most
-          // recent few seconds of progress.
           unawaited(_persistPosition(force: true));
         }
+        _publishToMediaSession();
       }),
       p.stream.position.listen((d) {
         state = state.copyWith(position: d);
         unawaited(_persistPosition());
+        _publishToMediaSession();
       }),
-      p.stream.duration.listen((d) => state = state.copyWith(duration: d)),
+      p.stream.duration.listen((d) {
+        state = state.copyWith(duration: d);
+        _publishToMediaSession();
+      }),
       p.stream.completed.listen((completed) {
         if (completed) _onTrackCompleted();
       }),
@@ -78,16 +79,41 @@ class PlaybackController extends Notifier<PlaybackState> {
 
   @override
   PlaybackState build() {
+    // Hook OS-level controls so the lock-screen / notification / headset
+    // buttons drive this controller.
+    final handler = mediaSessionHandler;
+    handler.onPlay = () {
+      unawaited(_play());
+    };
+    handler.onPause = () {
+      unawaited(player.pause());
+    };
+    handler.onNext = () {
+      unawaited(next());
+    };
+    handler.onPrevious = () {
+      unawaited(previous());
+    };
+    handler.onSeek = (Duration pos) {
+      unawaited(seek(pos));
+    };
+    handler.onStop = () {
+      unawaited(stop());
+    };
+
     ref.onDispose(() {
+      handler.onPlay = null;
+      handler.onPause = null;
+      handler.onNext = null;
+      handler.onPrevious = null;
+      handler.onSeek = null;
+      handler.onStop = null;
       for (final s in _subs) {
         s.cancel();
       }
       _cancelSleepTimers();
       _player?.dispose();
       WakelockPlus.disable();
-      if (_bgEnabled) {
-        unawaited(FlutterBackground.disableBackgroundExecution());
-      }
     });
     return const PlaybackState();
   }
@@ -95,7 +121,6 @@ class PlaybackController extends Notifier<PlaybackState> {
   // ---- Public API ----
 
   Future<void> playQueue(List<VideoMetadata> queue, int startIndex) async {
-    await _ensureBackground();
     state = state.copyWith(queue: queue, index: startIndex);
     await _openCurrent();
     await player.play();
@@ -109,6 +134,10 @@ class PlaybackController extends Notifier<PlaybackState> {
     }
   }
 
+  Future<void> _play() async {
+    if (!state.isPlaying) await player.play();
+  }
+
   Future<void> seek(Duration to) => player.seek(to);
 
   /// Update playback rate (0.5x .. 2.0x). Persists across track changes via
@@ -117,6 +146,7 @@ class PlaybackController extends Notifier<PlaybackState> {
     final clamped = rate.clamp(0.25, 4.0);
     await player.setRate(clamped);
     state = state.copyWith(playbackRate: clamped);
+    _publishToMediaSession();
   }
 
   Future<void> next() async {
@@ -171,8 +201,6 @@ class PlaybackController extends Notifier<PlaybackState> {
 
   // ---- Sleep timer ----
 
-  /// Start a sleep timer that pauses playback after [duration]. Pass null
-  /// to cancel. Mutually exclusive with [setSleepAtEndOfTrack].
   void setSleepTimer(Duration? duration) {
     _cancelSleepTimers();
     if (duration == null || duration == Duration.zero) {
@@ -199,7 +227,6 @@ class PlaybackController extends Notifier<PlaybackState> {
     );
   }
 
-  /// Toggle "pause at end of current track" mode. Cancels any countdown.
   void setSleepAtEndOfTrack(bool enabled) {
     _cancelSleepTimers();
     state = state.copyWith(
@@ -215,8 +242,9 @@ class PlaybackController extends Notifier<PlaybackState> {
     _sleepTickTimer = null;
   }
 
-  /// Stop playback, clear the queue, release the background service.
-  /// Mini player auto-hides because `state.current` becomes null.
+  /// Stop playback and clear the queue. Mini player auto-hides because
+  /// `state.current` becomes null. audio_service tears its foreground
+  /// service down when we stop reporting a playing state.
   Future<void> stop() async {
     _cancelSleepTimers();
     await player.stop();
@@ -228,47 +256,11 @@ class PlaybackController extends Notifier<PlaybackState> {
       sleepRemaining: null,
       sleepAtEndOfTrack: false,
     );
-    if (_bgEnabled) {
-      try {
-        await FlutterBackground.disableBackgroundExecution();
-      } catch (_) {}
-      _bgEnabled = false;
-    }
+    mediaSessionHandler.clearMediaItem();
+    _publishToMediaSession();
   }
 
   // ---- Internals ----
-
-  Future<void> _ensureBackground() async {
-    if (_bgEnabled) return;
-    try {
-      if (!_bgInitialized) {
-        debugPrint('[bg] hasPermissions check…');
-        final hasPerms = await FlutterBackground.hasPermissions;
-        debugPrint('[bg] hasPermissions=$hasPerms');
-        debugPrint('[bg] calling initialize()…');
-        final ok = await FlutterBackground.initialize(
-          androidConfig: const FlutterBackgroundAndroidConfig(
-            notificationTitle: 'YT Offline',
-            notificationText: 'Playing in background',
-            notificationImportance: AndroidNotificationImportance.normal,
-            // Notification small icon must be a white-on-transparent drawable;
-            // colored mipmaps get silently rejected by Android 5+.
-            notificationIcon:
-                AndroidResource(name: 'ic_notification', defType: 'drawable'),
-            enableWifiLock: true,
-          ),
-        );
-        debugPrint('[bg] initialize() returned: $ok');
-        _bgInitialized = ok;
-        if (!ok) return;
-      }
-      debugPrint('[bg] calling enableBackgroundExecution()…');
-      _bgEnabled = await FlutterBackground.enableBackgroundExecution();
-      debugPrint('[bg] enabled=$_bgEnabled (running=${FlutterBackground.isBackgroundExecutionEnabled})');
-    } catch (e, st) {
-      debugPrint('[bg] FAILED: $e\n$st');
-    }
-  }
 
   Future<void> _openCurrent() async {
     final v = state.current;
@@ -277,22 +269,26 @@ class PlaybackController extends Notifier<PlaybackState> {
     if (v.subtitlePath != null) {
       await player.setSubtitleTrack(SubtitleTrack.uri(v.subtitlePath!));
     }
-    // mpv resets playback rate to 1.0 on every open(); re-apply the user's
-    // chosen rate so switching tracks doesn't snap back to normal speed.
     if (state.playbackRate != 1.0) {
       await player.setRate(state.playbackRate);
     }
-    // Resume from the saved point if there is one. _lastPositionSaveAt is
-    // reset so the first save for this track waits a full interval.
     _lastPositionSaveAt = DateTime.now();
     if (v.hasResumePoint) {
       await player.seek(v.lastPosition!);
     }
+    // Tell the OS what's playing so the lock screen shows title + art.
+    mediaSessionHandler.publishMediaItem(v);
   }
 
-  /// Persist [state.position] to the current video's metadata, throttled
-  /// to [_positionSaveInterval] unless [force] is true. Skips early seconds
-  /// (< 3s) so trivial brushes don't pollute the resume point.
+  void _publishToMediaSession() {
+    mediaSessionHandler.publishState(
+      playing: state.isPlaying,
+      position: state.position,
+      duration: state.duration,
+      speed: state.playbackRate,
+    );
+  }
+
   Future<void> _persistPosition({bool force = false}) async {
     final v = state.current;
     if (v == null) return;
@@ -307,8 +303,6 @@ class PlaybackController extends Notifier<PlaybackState> {
     }
     _lastPositionSaveAt = now;
 
-    // Near the end → don't save a "resume" point; it'd just replay the
-    // last few seconds next time. completedListener clears any existing one.
     if (v.duration > Duration.zero) {
       final fraction = pos.inMilliseconds / v.duration.inMilliseconds;
       if (fraction >= VideoMetadata.finishedThreshold) return;
@@ -340,14 +334,10 @@ class PlaybackController extends Notifier<PlaybackState> {
     final newQueue = List<VideoMetadata>.from(state.queue);
     newQueue[state.index] = updated;
     state = state.copyWith(queue: newQueue);
-    // Library list cache is keyed off the FutureProvider; mark it dirty so
-    // the next Library mount reads the fresh metadata.
     ref.invalidate(libraryListProvider);
   }
 
   void _autoAdvance() {
-    // Honour the "stop at end of current track" sleep mode: don't advance,
-    // just clear the flag.
     if (state.sleepAtEndOfTrack) {
       state = state.copyWith(sleepAtEndOfTrack: false);
       return;

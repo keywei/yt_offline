@@ -35,14 +35,6 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
-        <!-- flutter_background's foreground service. The plugin ships its
-             Kotlin class but does NOT declare it in its own manifest, so
-             we must add it here or `startForegroundService` is a no-op. -->
-        <service
-            android:name="de.julianassmann.flutter_background.IsolateHolderService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

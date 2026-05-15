@@ -45,8 +45,10 @@ dependencies:
   # Keep CPU alive while playing so audio survives screen-off / backgrounding
   wakelock_plus: ^1.2.10
 
-  # Foreground service so Android doesn't kill the process when backgrounded
-  flutter_background: ^1.3.0+1
+  # OS-level media controls (lock screen, notification, headset buttons,
+  # CarPlay / Android Auto) PLUS Android foreground service for background
+  # audio. Replaces flutter_background; works on both Android and iOS.
+  audio_service: ^0.18.15
 
   # Persistent swipe-to-reveal actions (Dismissible is one-shot only)
   flutter_slidable: ^3.1.2
