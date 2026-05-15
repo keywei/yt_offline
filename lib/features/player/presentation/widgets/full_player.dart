@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
@@ -8,6 +9,23 @@ import '../providers/playback_providers.dart';
 import '../state/playback_state.dart';
 import 'playback_speed_sheet.dart';
 import 'sleep_timer_sheet.dart';
+
+/// Briefly lock the device to the given orientations to trigger rotation,
+/// then release so the sensor can take over again. Without the release the
+/// device would stay pinned and the user couldn't rotate back manually.
+Future<void> _flipOrientation(List<DeviceOrientation> target) async {
+  await SystemChrome.setPreferredOrientations(target);
+  Future.delayed(const Duration(seconds: 1), () {
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+  });
+}
+
+const _landscapes = [
+  DeviceOrientation.landscapeLeft,
+  DeviceOrientation.landscapeRight,
+];
+
+const _portrait = [DeviceOrientation.portraitUp];
 
 /// The "Now Playing" surface. Renders the Video widget plus transport
 /// controls. Designed to live permanently in the widget tree (inside
@@ -76,9 +94,28 @@ class _PortraitLayout extends StatelessWidget {
               ),
             AspectRatio(
               aspectRatio: 16 / 9,
-              child: Video(
-                controller: controller.videoController,
-                pauseUponEnteringBackgroundMode: false,
+              child: Stack(
+                children: [
+                  Video(
+                    controller: controller.videoController,
+                    pauseUponEnteringBackgroundMode: false,
+                    // Hide media_kit's built-in MaterialVideoControls; we
+                    // own the entire UI ourselves.
+                    controls: (_) => const SizedBox.shrink(),
+                  ),
+                  Positioned(
+                    right: 4,
+                    bottom: 4,
+                    child: IconButton(
+                      tooltip: 'Fullscreen',
+                      icon: const Icon(
+                        Icons.fullscreen,
+                        color: Colors.white,
+                      ),
+                      onPressed: () => _flipOrientation(_landscapes),
+                    ),
+                  ),
+                ],
               ),
             ),
             _Scrubber(state: state, controller: controller),
@@ -170,6 +207,7 @@ class _LandscapeLayoutState extends State<_LandscapeLayout> {
             Video(
               controller: controller.videoController,
               pauseUponEnteringBackgroundMode: false,
+              controls: (_) => const SizedBox.shrink(),
               fit: BoxFit.contain,
             ),
             AnimatedOpacity(
@@ -307,7 +345,7 @@ class _LandscapeOverlay extends StatelessWidget {
                     ),
                     onPressed: () {
                       onAnyInteraction();
-                      onCollapse();
+                      _flipOrientation(_portrait);
                     },
                   ),
                 ],
