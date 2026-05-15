@@ -9,6 +9,8 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../../../core/storage/video_metadata.dart';
+import '../../../download/presentation/providers/download_providers.dart';
+import '../../../library/presentation/providers/library_providers.dart';
 import '../state/playback_state.dart';
 
 /// Long-lived [Player] + [VideoController]. Lives in the root ProviderScope
@@ -25,6 +27,11 @@ class PlaybackController extends Notifier<PlaybackState> {
 
   Timer? _sleepFireTimer;
   Timer? _sleepTickTimer;
+
+  /// Throttle for persisting playback position. We save at most every 5s
+  /// while playing so the JSON file doesn't get hammered.
+  DateTime? _lastPositionSaveAt;
+  static const _positionSaveInterval = Duration(seconds: 5);
 
   Player get player {
     if (_player == null) _ensurePlayer();
@@ -51,11 +58,19 @@ class PlaybackController extends Notifier<PlaybackState> {
       p.stream.playing.listen((v) {
         state = state.copyWith(isPlaying: v);
         WakelockPlus.toggle(enable: v);
+        if (!v) {
+          // Save immediately on pause so the user doesn't lose the most
+          // recent few seconds of progress.
+          unawaited(_persistPosition(force: true));
+        }
       }),
-      p.stream.position.listen((d) => state = state.copyWith(position: d)),
+      p.stream.position.listen((d) {
+        state = state.copyWith(position: d);
+        unawaited(_persistPosition());
+      }),
       p.stream.duration.listen((d) => state = state.copyWith(duration: d)),
       p.stream.completed.listen((completed) {
-        if (completed) _autoAdvance();
+        if (completed) _onTrackCompleted();
       }),
     ]);
     return p;
@@ -267,6 +282,67 @@ class PlaybackController extends Notifier<PlaybackState> {
     if (state.playbackRate != 1.0) {
       await player.setRate(state.playbackRate);
     }
+    // Resume from the saved point if there is one. _lastPositionSaveAt is
+    // reset so the first save for this track waits a full interval.
+    _lastPositionSaveAt = DateTime.now();
+    if (v.hasResumePoint) {
+      await player.seek(v.lastPosition!);
+    }
+  }
+
+  /// Persist [state.position] to the current video's metadata, throttled
+  /// to [_positionSaveInterval] unless [force] is true. Skips early seconds
+  /// (< 3s) so trivial brushes don't pollute the resume point.
+  Future<void> _persistPosition({bool force = false}) async {
+    final v = state.current;
+    if (v == null) return;
+    final pos = state.position;
+    if (pos < const Duration(seconds: 3)) return;
+
+    final now = DateTime.now();
+    if (!force &&
+        _lastPositionSaveAt != null &&
+        now.difference(_lastPositionSaveAt!) < _positionSaveInterval) {
+      return;
+    }
+    _lastPositionSaveAt = now;
+
+    // Near the end → don't save a "resume" point; it'd just replay the
+    // last few seconds next time. completedListener clears any existing one.
+    if (v.duration > Duration.zero) {
+      final fraction = pos.inMilliseconds / v.duration.inMilliseconds;
+      if (fraction >= VideoMetadata.finishedThreshold) return;
+    }
+
+    final updated = v.copyWith(lastPosition: pos, lastPositionAt: now);
+    try {
+      await ref.read(videoMetadataStoreProvider).save(updated);
+    } catch (_) {
+      return;
+    }
+    _replaceCurrentInQueue(updated);
+  }
+
+  void _onTrackCompleted() {
+    final v = state.current;
+    if (v != null) {
+      final cleared = v.copyWith(lastPosition: null, lastPositionAt: null);
+      unawaited(
+        ref.read(videoMetadataStoreProvider).save(cleared).catchError((_) {}),
+      );
+      _replaceCurrentInQueue(cleared);
+    }
+    _autoAdvance();
+  }
+
+  void _replaceCurrentInQueue(VideoMetadata updated) {
+    if (!state.hasCurrent) return;
+    final newQueue = List<VideoMetadata>.from(state.queue);
+    newQueue[state.index] = updated;
+    state = state.copyWith(queue: newQueue);
+    // Library list cache is keyed off the FutureProvider; mark it dirty so
+    // the next Library mount reads the fresh metadata.
+    ref.invalidate(libraryListProvider);
   }
 
   void _autoAdvance() {

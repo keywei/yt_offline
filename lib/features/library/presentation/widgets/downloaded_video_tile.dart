@@ -37,6 +37,7 @@ class DownloadedVideoTile extends StatelessWidget {
     final fileExists = File(meta.videoPath).existsSync();
     final inSelection = selected != null;
 
+    final watched = meta.watchedFraction;
     final thumbnail = ClipRRect(
       borderRadius: BorderRadius.circular(6),
       child: SizedBox(
@@ -51,6 +52,23 @@ class DownloadedVideoTile extends StatelessWidget {
               errorBuilder: (_, _, _) =>
                   const ColoredBox(color: Colors.black12),
             ),
+            // YouTube-style "watched so far" bar across the bottom of the
+            // thumbnail. Only drawn for partially-watched items.
+            if (meta.hasResumePoint)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  height: 3,
+                  color: Colors.black45,
+                  child: FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: watched,
+                    child: Container(color: theme.colorScheme.primary),
+                  ),
+                ),
+              ),
             if (isCurrent)
               Container(
                 color: Colors.black54,
@@ -95,6 +113,7 @@ class DownloadedVideoTile extends StatelessWidget {
         Text(
           '${meta.author} • ${_fmtDuration(meta.duration)}'
           '${meta.subtitlePath != null ? ' • CC' : ''}'
+          '${meta.hasResumePoint ? ' • Resume ${_fmtDuration(meta.lastPosition!)}' : ''}'
           '${fileExists ? '' : ' • missing file'}',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
