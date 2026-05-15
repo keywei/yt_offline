@@ -58,6 +58,12 @@ class FullPlayer extends ConsumerWidget {
   final VoidCallback onCollapse;
   final bool landscape;
 
+  /// Shared between portrait and landscape layouts so the [Video] widget's
+  /// Element/State survives rotation. Without it the layout swap remounts
+  /// Video, which stalls libmpv on iOS the same way the mini→full route push
+  /// used to.
+  static final GlobalKey videoKey = GlobalKey();
+
   const FullPlayer({
     required this.onCollapse,
     this.landscape = false,
@@ -117,6 +123,7 @@ class _PortraitLayout extends StatelessWidget {
               child: Stack(
                 children: [
                   Video(
+                    key: FullPlayer.videoKey,
                     controller: controller.videoController,
                     pauseUponEnteringBackgroundMode: false,
                     // Hide media_kit's built-in MaterialVideoControls; we
@@ -225,6 +232,7 @@ class _LandscapeLayoutState extends State<_LandscapeLayout> {
           children: [
             // Video stretched to fill the screen.
             Video(
+              key: FullPlayer.videoKey,
               controller: controller.videoController,
               pauseUponEnteringBackgroundMode: false,
               controls: (_) => const SizedBox.shrink(),
