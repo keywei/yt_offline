@@ -204,6 +204,30 @@ class S {
   String get abPointB => _pick('B', 'B');
   String get abClear => _pick('Clear A-B loop', '清除 A-B 循環');
 
+  // ---- Storage management ----
+  String get storageSectionTitle => _pick('Storage', '儲存空間');
+  String get storageTitle => _pick('Storage usage', '儲存空間使用');
+  String get storagePerCategory => _pick('By category', '依分類');
+  String get storageBiggest => _pick('Biggest videos', '最大的影片');
+  String get storageCleanup => _pick('Cleanup', '清理');
+  String storageUsedSummary(int n) =>
+      _pick('Used across $n video${n == 1 ? '' : 's'}',
+          '共 $n 部影片佔用');
+  String get storageNoWatched =>
+      _pick('No fully-watched videos to delete', '沒有看完的影片可刪除');
+  String storageDeleteWatched(int n, String size) =>
+      _pick('Delete $n watched ($size)', '刪除 $n 部已看完（$size）');
+  String get storageDeleteWatchedSubtitle =>
+      _pick('Frees space without touching unfinished videos',
+          '不影響尚未看完的影片');
+  String get storageDeleteWatchedConfirmTitle =>
+      _pick('Delete watched videos?', '刪除已看完的影片？');
+  String storageDeleteWatchedConfirmBody(int n, String size) => _pick(
+        'This will permanently delete $n video${n == 1 ? '' : 's'} '
+            'totalling $size from your device.',
+        '將會永久刪除 $n 部影片，共 $size。',
+      );
+
   // ---- Misc ----
   String get loading => _pick('Loading…', '載入中…');
 }

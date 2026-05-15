@@ -36,6 +36,15 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const Divider(height: 1),
+          _section(context, s.storageSectionTitle),
+          ListTile(
+            leading: const Icon(Icons.sd_storage_outlined),
+            title: Text(s.storageTitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () =>
+                context.go('${Routes.settings}/${Routes.storage}'),
+          ),
+          const Divider(height: 1),
           _section(context, 'About'),
           FutureBuilder<PackageInfo>(
             future: PackageInfo.fromPlatform(),

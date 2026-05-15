@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/library/presentation/screens/library_screen.dart';
 import '../../features/search/presentation/screens/search_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
+import '../../features/settings/presentation/screens/storage_screen.dart';
 import '../../features/settings/presentation/screens/subtitle_settings_screen.dart';
 import '../shell/main_shell.dart';
 
@@ -13,6 +14,7 @@ abstract final class Routes {
   static const library = '/library';
   static const settings = '/settings';
   static const subtitleSettings = 'subtitles';
+  static const storage = 'storage';
 }
 
 final _rootKey = GlobalKey<NavigatorState>();
@@ -56,6 +58,10 @@ final appRouterProvider = Provider<GoRouter>(
                   GoRoute(
                     path: Routes.subtitleSettings,
                     builder: (_, _) => const SubtitleSettingsScreen(),
+                  ),
+                  GoRoute(
+                    path: Routes.storage,
+                    builder: (_, _) => const StorageScreen(),
                   ),
                 ],
               ),
