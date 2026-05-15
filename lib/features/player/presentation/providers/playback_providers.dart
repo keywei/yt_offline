@@ -390,6 +390,10 @@ class PlaybackController extends Notifier<PlaybackState> {
     await player.open(Media(v.videoPath));
     if (v.subtitlePath != null) {
       await player.setSubtitleTrack(SubtitleTrack.uri(v.subtitlePath!));
+    } else {
+      // No sidecar — make sure no leftover track from a previous video
+      // bleeds onto this one.
+      await player.setSubtitleTrack(SubtitleTrack.no());
     }
     // libmpv resets sub properties on every file open, so push the current
     // preference snapshot through after every successful open().
@@ -397,6 +401,8 @@ class PlaybackController extends Notifier<PlaybackState> {
     if (prefs != null) {
       await _applySubtitleStyle(prefs);
     }
+    // Honour the user's last-known visibility choice for this play session.
+    await _applySubtitleVisibility(state.subtitlesVisible);
     if (state.playbackRate != 1.0) {
       await player.setRate(state.playbackRate);
     }
@@ -424,6 +430,22 @@ class PlaybackController extends Notifier<PlaybackState> {
       ref.read(watchHistoryProvider.notifier).refresh();
     } catch (_) {
       // History is best-effort — swallow disk errors.
+    }
+  }
+
+  Future<void> toggleSubtitles() async {
+    final next = !state.subtitlesVisible;
+    state = state.copyWith(subtitlesVisible: next);
+    await _applySubtitleVisibility(next);
+  }
+
+  Future<void> _applySubtitleVisibility(bool visible) async {
+    final native = _player?.platform;
+    if (native is! NativePlayer) return;
+    try {
+      await native.setProperty('sub-visibility', visible ? 'yes' : 'no');
+    } catch (_) {
+      // Race with file open — next _openCurrent will re-apply.
     }
   }
 

@@ -255,6 +255,11 @@ class S {
   String get pipEnter =>
       _pick('Picture in Picture', '子母畫面');
 
+  // ---- Subtitle toggle in player ----
+  String get subtitlesOn => _pick('Subtitles', '字幕');
+  String get subtitlesOff => _pick('Subtitles off', '字幕關閉');
+  String get subtitlesNone => _pick('No subtitles', '無字幕');
+
   // ---- Misc ----
   String get loading => _pick('Loading…', '載入中…');
 }

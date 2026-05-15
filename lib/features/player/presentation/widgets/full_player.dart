@@ -615,6 +615,31 @@ class _LandscapeOverlay extends StatelessWidget {
                       SleepTimerSheet.show(context);
                     },
                   ),
+                  Builder(
+                    builder: (_) {
+                      final hasSubs = state.current?.subtitlePath != null;
+                      final on = state.subtitlesVisible;
+                      return IconButton(
+                        tooltip: hasSubs
+                            ? (on
+                                ? S.of(context).subtitlesOn
+                                : S.of(context).subtitlesOff)
+                            : S.of(context).subtitlesNone,
+                        icon: Icon(
+                          on ? Icons.subtitles : Icons.subtitles_off,
+                          color: !hasSubs
+                              ? Colors.white24
+                              : (on ? Colors.amber : Colors.white),
+                        ),
+                        onPressed: !hasSubs
+                            ? null
+                            : () {
+                                onAnyInteraction();
+                                controller.toggleSubtitles();
+                              },
+                      );
+                    },
+                  ),
                   _ABPill(
                     label: S.of(context).abPointA,
                     time: state.loopA,
@@ -897,10 +922,39 @@ class _Controls extends StatelessWidget {
             children: [
               _SpeedButton(state: state),
               _SleepTimerButton(state: state),
+              _SubtitleToggle(state: state, controller: controller),
               _ABLoopControls(state: state, controller: controller),
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SubtitleToggle extends StatelessWidget {
+  final PlaybackState state;
+  final PlaybackController controller;
+  const _SubtitleToggle({required this.state, required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final hasSubs = state.current?.subtitlePath != null;
+    final on = state.subtitlesVisible;
+    final colour = !hasSubs
+        ? Colors.white24
+        : (on ? Colors.amber : Colors.white70);
+    return TextButton.icon(
+      onPressed: hasSubs ? controller.toggleSubtitles : null,
+      icon: Icon(
+        on ? Icons.subtitles : Icons.subtitles_off,
+        size: 18,
+        color: colour,
+      ),
+      label: Text(
+        hasSubs ? (on ? s.subtitlesOn : s.subtitlesOff) : s.subtitlesNone,
+        style: TextStyle(color: colour, fontSize: 12),
       ),
     );
   }

@@ -44,6 +44,11 @@ class PlaybackState {
   final Duration? loopA;
   final Duration? loopB;
 
+  /// Whether the on-screen subtitle track is currently rendered. Only
+  /// meaningful for tracks that actually have a sidecar SRT — the UI
+  /// gates the toggle button on `current.subtitlePath != null`.
+  final bool subtitlesVisible;
+
   const PlaybackState({
     this.queue = const [],
     this.index = -1,
@@ -57,6 +62,7 @@ class PlaybackState {
     this.playbackRate = 1.0,
     this.loopA,
     this.loopB,
+    this.subtitlesVisible = true,
   });
 
   bool get hasCurrent => index >= 0 && index < queue.length;
@@ -80,6 +86,7 @@ class PlaybackState {
     double? playbackRate,
     Object? loopA = _unchanged,
     Object? loopB = _unchanged,
+    bool? subtitlesVisible,
   }) =>
       PlaybackState(
         queue: queue ?? this.queue,
@@ -96,5 +103,6 @@ class PlaybackState {
         playbackRate: playbackRate ?? this.playbackRate,
         loopA: identical(loopA, _unchanged) ? this.loopA : loopA as Duration?,
         loopB: identical(loopB, _unchanged) ? this.loopB : loopB as Duration?,
+        subtitlesVisible: subtitlesVisible ?? this.subtitlesVisible,
       );
 }
