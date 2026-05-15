@@ -23,9 +23,24 @@ class PlaybackController extends Notifier<PlaybackState> {
   bool _bgInitialized = false;
   bool _bgEnabled = false;
 
-  Player get player => _player ??= _createPlayer();
-  VideoController get videoController =>
-      _videoController ??= VideoController(player);
+  Player get player {
+    if (_player == null) _ensurePlayer();
+    return _player!;
+  }
+
+  VideoController get videoController {
+    if (_videoController == null) _ensurePlayer();
+    return _videoController!;
+  }
+
+  void _ensurePlayer() {
+    if (_player != null) return;
+    _player = _createPlayer();
+    // Must be attached BEFORE any player.open() — otherwise libmpv picks the
+    // null video output and the texture stays black even after the controller
+    // is created later.
+    _videoController = VideoController(_player!);
+  }
 
   Player _createPlayer() {
     final p = Player();
