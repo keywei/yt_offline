@@ -12,6 +12,9 @@
 .swiftpm/
 migrate_working_dir/
 
+# Claude Code harness state (skills/ is tracked; runtime artifacts aren't)
+.claude/scheduled_tasks*
+
 # IntelliJ related
 *.iml
 *.ipr
