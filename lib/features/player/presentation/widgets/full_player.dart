@@ -936,8 +936,14 @@ class _Controls extends StatelessWidget {
               ),
             ],
           ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          // Wrap (not Row) — on narrow iPhones the 5 buttons overflow a
+          // single line and the rightmost ones (Volume / Sleep / Subtitle /
+          // A-B) get silently clipped in release mode. Wrap lets them spill
+          // onto a second row when space runs out, keeping everything tappable.
+          Wrap(
+            alignment: WrapAlignment.spaceEvenly,
+            spacing: 4,
+            runSpacing: 0,
             children: [
               _SpeedButton(state: state),
               _VolumeButton(),
