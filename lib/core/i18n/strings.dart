@@ -260,6 +260,11 @@ class S {
   String get subtitlesOff => _pick('Subtitles off', '字幕關閉');
   String get subtitlesNone => _pick('No subtitles', '無字幕');
 
+  // ---- Volume control ----
+  String get volumeTitle => _pick('Volume', '音量');
+  String get volumeMute => _pick('Mute', '靜音');
+  String get volumeUnmute => _pick('Unmute', '取消靜音');
+
   // ---- Misc ----
   String get loading => _pick('Loading…', '載入中…');
 }

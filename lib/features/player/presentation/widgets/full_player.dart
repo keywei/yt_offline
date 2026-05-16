@@ -14,6 +14,7 @@ import '../providers/playback_providers.dart';
 import '../state/playback_state.dart';
 import 'playback_speed_sheet.dart';
 import 'sleep_timer_sheet.dart';
+import 'volume_sheet.dart';
 
 /// Same channel name used by `AppDelegate.swift` on the iOS side.
 const _orientationChannel = MethodChannel('yt_offline/orientation');
@@ -611,6 +612,17 @@ class _LandscapeOverlay extends StatelessWidget {
                     },
                   ),
                   IconButton(
+                    tooltip: S.of(context).volumeTitle,
+                    icon: const Icon(
+                      Icons.volume_up,
+                      color: Colors.white,
+                    ),
+                    onPressed: () {
+                      onAnyInteraction();
+                      VolumeSheet.show(context);
+                    },
+                  ),
+                  IconButton(
                     icon: Icon(
                       state.hasSleepTimer
                           ? Icons.bedtime
@@ -928,6 +940,7 @@ class _Controls extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               _SpeedButton(state: state),
+              _VolumeButton(),
               _SleepTimerButton(state: state),
               _SubtitleToggle(state: state, controller: controller),
               _ABLoopControls(state: state, controller: controller),
@@ -1074,6 +1087,24 @@ class _SpeedButton extends StatelessWidget {
           color: active ? Colors.amber : Colors.white70,
           fontSize: 12,
         ),
+      ),
+    );
+  }
+}
+
+class _VolumeButton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: () => VolumeSheet.show(context),
+      icon: const Icon(
+        Icons.volume_up,
+        size: 18,
+        color: Colors.white70,
+      ),
+      label: Text(
+        S.of(context).volumeTitle,
+        style: const TextStyle(color: Colors.white70, fontSize: 12),
       ),
     );
   }
