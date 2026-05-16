@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_volume_controller/flutter_volume_controller.dart';
 
@@ -7,8 +5,16 @@ import '../../../../core/i18n/strings.dart';
 
 /// Controls the **system** media volume — same channel
 /// `flutter_volume_controller` drives from the landscape vertical-swipe
-/// gesture. Stays in sync with hardware volume buttons via a listener
-/// for as long as the sheet is mounted.
+/// gesture. Reads the current volume once on open; closing the sheet
+/// must NOT touch the AVAudioSession.
+///
+/// We deliberately do NOT use `FlutterVolumeController.addListener`:
+///   - its default category arg is `.ambient`, which would overwrite our
+///     `.playback` category and silence libmpv's CoreAudio output.
+///   - its native `onCancel` calls `audioSession.setActive(false)` on
+///     dispose, which also kills libmpv's audio.
+/// The tradeoff is the slider won't reflect hardware volume-button presses
+/// while the sheet is open — minor, the user can reopen the sheet to refresh.
 class VolumeSheet extends StatefulWidget {
   const VolumeSheet({super.key});
 
@@ -28,14 +34,8 @@ class _VolumeSheetState extends State<VolumeSheet> {
   /// 0..1; `null` until the first read resolves.
   double? _value;
 
-  /// True while the user is mid-drag — we ignore listener pushes during
-  /// that window so the thumb doesn't jitter against our writes.
-  bool _draggingLocal = false;
-
   /// Snapshot of the pre-mute volume so the toggle can restore it.
   double? _preMute;
-
-  StreamSubscription<double>? _listener;
 
   @override
   void initState() {
@@ -48,20 +48,10 @@ class _VolumeSheetState extends State<VolumeSheet> {
       final v = await FlutterVolumeController.getVolume();
       if (!mounted) return;
       setState(() => _value = v ?? 0);
-      _listener = FlutterVolumeController.addListener((nv) {
-        if (!mounted || _draggingLocal) return;
-        setState(() => _value = nv);
-      });
     } catch (_) {
       if (!mounted) return;
       setState(() => _value = 0);
     }
-  }
-
-  @override
-  void dispose() {
-    _listener?.cancel();
-    super.dispose();
   }
 
   Future<void> _set(double v) async {
@@ -121,9 +111,7 @@ class _VolumeSheetState extends State<VolumeSheet> {
                 Expanded(
                   child: Slider(
                     value: value ?? 0,
-                    onChangeStart: (_) => _draggingLocal = true,
                     onChanged: value == null ? null : _set,
-                    onChangeEnd: (_) => _draggingLocal = false,
                   ),
                 ),
                 SizedBox(
