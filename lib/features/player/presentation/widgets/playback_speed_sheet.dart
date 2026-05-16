@@ -11,6 +11,12 @@ class PlaybackSpeedSheet extends ConsumerWidget {
     return showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      // Allow the sheet to grow beyond the default ~56% cap so all
+      // presets are visible in landscape (screen height drops to ~390pt
+      // and the bottom presets would otherwise sit off-screen and be
+      // un-tappable). Combined with the inner SingleChildScrollView the
+      // content scrolls when even the full-screen sheet isn't enough.
+      isScrollControlled: true,
       builder: (_) => const PlaybackSpeedSheet(),
     );
   }
@@ -26,31 +32,33 @@ class PlaybackSpeedSheet extends ConsumerWidget {
 
     return SafeArea(
       top: false,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-            child: Text(
-              S.of(context).speed,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ),
-          for (final rate in _presets)
-            ListTile(
-              leading: Icon(
-                rate == 1.0 ? Icons.speed_outlined : Icons.speed,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Text(
+                S.of(context).speed,
+                style: Theme.of(context).textTheme.titleMedium,
               ),
-              title: Text(_format(rate)),
-              trailing: (rate - current).abs() < 0.001
-                  ? const Icon(Icons.check, color: Colors.amber)
-                  : null,
-              onTap: () {
-                controller.setRate(rate);
-                Navigator.of(context).pop();
-              },
             ),
-        ],
+            for (final rate in _presets)
+              ListTile(
+                leading: Icon(
+                  rate == 1.0 ? Icons.speed_outlined : Icons.speed,
+                ),
+                title: Text(_format(rate)),
+                trailing: (rate - current).abs() < 0.001
+                    ? const Icon(Icons.check, color: Colors.amber)
+                    : null,
+                onTap: () {
+                  controller.setRate(rate);
+                  Navigator.of(context).pop();
+                },
+              ),
+          ],
+        ),
       ),
     );
   }

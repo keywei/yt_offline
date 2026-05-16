@@ -12,6 +12,12 @@ class SleepTimerSheet extends ConsumerWidget {
     return showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      // Allow the sheet to grow beyond the default ~56% cap so all
+      // timer presets are visible in landscape (where the screen height
+      // collapses and the bottom items would otherwise be off-screen).
+      // Inner SingleChildScrollView handles the case where even the
+      // full-screen sheet isn't enough.
+      isScrollControlled: true,
       builder: (_) => const SleepTimerSheet(),
     );
   }
@@ -41,59 +47,61 @@ class SleepTimerSheet extends ConsumerWidget {
     final s = S.of(context);
     return SafeArea(
       top: false,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-            child: Text(
-              s.sleepTimer,
-              style: Theme.of(context).textTheme.titleMedium,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Text(
+                s.sleepTimer,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
             ),
-          ),
-          item(
-            icon: Icons.timer_off_outlined,
-            label: s.sleepOff,
-            selected: !state.hasSleepTimer,
-            onTap: () => controller.setSleepTimer(null),
-          ),
-          item(
-            icon: Icons.bedtime_outlined,
-            label: s.sleepMinutes5,
-            selected: state.sleepRemaining != null &&
-                state.sleepRemaining! <= const Duration(minutes: 5),
-            onTap: () =>
-                controller.setSleepTimer(const Duration(minutes: 5)),
-          ),
-          item(
-            icon: Icons.bedtime_outlined,
-            label: s.sleepMinutes15,
-            selected: false,
-            onTap: () =>
-                controller.setSleepTimer(const Duration(minutes: 15)),
-          ),
-          item(
-            icon: Icons.bedtime_outlined,
-            label: s.sleepMinutes30,
-            selected: false,
-            onTap: () =>
-                controller.setSleepTimer(const Duration(minutes: 30)),
-          ),
-          item(
-            icon: Icons.bedtime_outlined,
-            label: s.sleepHour1,
-            selected: false,
-            onTap: () =>
-                controller.setSleepTimer(const Duration(hours: 1)),
-          ),
-          const Divider(height: 1),
-          item(
-            icon: Icons.last_page,
-            label: s.sleepEndOfTrack,
-            selected: state.sleepAtEndOfTrack,
-            onTap: () => controller.setSleepAtEndOfTrack(true),
-          ),
-        ],
+            item(
+              icon: Icons.timer_off_outlined,
+              label: s.sleepOff,
+              selected: !state.hasSleepTimer,
+              onTap: () => controller.setSleepTimer(null),
+            ),
+            item(
+              icon: Icons.bedtime_outlined,
+              label: s.sleepMinutes5,
+              selected: state.sleepRemaining != null &&
+                  state.sleepRemaining! <= const Duration(minutes: 5),
+              onTap: () =>
+                  controller.setSleepTimer(const Duration(minutes: 5)),
+            ),
+            item(
+              icon: Icons.bedtime_outlined,
+              label: s.sleepMinutes15,
+              selected: false,
+              onTap: () =>
+                  controller.setSleepTimer(const Duration(minutes: 15)),
+            ),
+            item(
+              icon: Icons.bedtime_outlined,
+              label: s.sleepMinutes30,
+              selected: false,
+              onTap: () =>
+                  controller.setSleepTimer(const Duration(minutes: 30)),
+            ),
+            item(
+              icon: Icons.bedtime_outlined,
+              label: s.sleepHour1,
+              selected: false,
+              onTap: () =>
+                  controller.setSleepTimer(const Duration(hours: 1)),
+            ),
+            const Divider(height: 1),
+            item(
+              icon: Icons.last_page,
+              label: s.sleepEndOfTrack,
+              selected: state.sleepAtEndOfTrack,
+              onTap: () => controller.setSleepAtEndOfTrack(true),
+            ),
+          ],
+        ),
       ),
     );
   }
