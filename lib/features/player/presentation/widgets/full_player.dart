@@ -18,15 +18,18 @@ import 'sleep_timer_sheet.dart';
 /// Same channel name used by `AppDelegate.swift` on the iOS side.
 const _orientationChannel = MethodChannel('yt_offline/orientation');
 
-/// Briefly lock the device to the given orientations to trigger rotation,
-/// then release so the sensor can take over again. Without the release the
-/// device would stay pinned and the user couldn't rotate back manually.
+/// Lock the device to the given orientations and physically rotate.
 ///
 /// On iOS, [SystemChrome.setPreferredOrientations] only declares *what is
 /// allowed* — it does not physically rotate. We additionally invoke a
 /// native MethodChannel that calls `requestGeometryUpdate` on iOS 16+ (or
 /// the legacy "orientation" KVC trick on older versions) to force the
 /// rotation right away.
+///
+/// The "preferred orientations" pin is only released after returning to
+/// portrait. If we released right after forcing landscape, iOS would
+/// re-evaluate against the system portrait lock (control-centre rotation
+/// lock) and snap us back to portrait mid-playback.
 Future<void> _flipOrientation(List<DeviceOrientation> target) async {
   await SystemChrome.setPreferredOrientations(target);
   if (defaultTargetPlatform == TargetPlatform.iOS) {
@@ -39,9 +42,13 @@ Future<void> _flipOrientation(List<DeviceOrientation> target) async {
       // The channel might not be wired in unit tests; ignore.
     }
   }
-  Future.delayed(const Duration(seconds: 1), () {
-    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
-  });
+  final returningToPortrait =
+      target.length == 1 && target.first == DeviceOrientation.portraitUp;
+  if (returningToPortrait) {
+    Future.delayed(const Duration(seconds: 1), () {
+      SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    });
+  }
 }
 
 const _landscapes = [
