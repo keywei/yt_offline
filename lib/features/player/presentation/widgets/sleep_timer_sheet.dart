@@ -12,12 +12,17 @@ class SleepTimerSheet extends ConsumerWidget {
     return showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      // Allow the sheet to grow beyond the default ~56% cap so all
-      // timer presets are visible in landscape (where the screen height
-      // collapses and the bottom items would otherwise be off-screen).
-      // Inner SingleChildScrollView handles the case where even the
-      // full-screen sheet isn't enough.
       isScrollControlled: true,
+      // Cap sheet at 90% of screen height. Without a hard cap, isScrollControlled
+      // lets the sheet pass unbounded vertical constraints to its child — the
+      // inner SingleChildScrollView's viewport ends up equal to the full
+      // natural content height, so it never scrolls, and the system just
+      // clips the sheet at the screen edge (bottom rows un-tappable in
+      // landscape). The cap creates a real bounded viewport so the inner
+      // scroll can do its job.
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.9,
+      ),
       builder: (_) => const SleepTimerSheet(),
     );
   }
