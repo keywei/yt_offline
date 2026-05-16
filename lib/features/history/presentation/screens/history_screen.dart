@@ -98,14 +98,44 @@ class _HistoryRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = S.of(context);
     final canResume = library != null;
+
+    final subtitleParts = <String>[
+      if (library != null) library!.author,
+      _relativeTime(context, event.startedAt),
+    ];
+
     return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: SizedBox(
+          width: 88,
+          height: 52,
+          child: library != null
+              ? Image.network(
+                  library!.thumbnailUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) =>
+                      const ColoredBox(color: Colors.black12),
+                )
+              : const ColoredBox(
+                  color: Colors.black12,
+                  child: Icon(
+                    Icons.broken_image_outlined,
+                    color: Colors.white54,
+                  ),
+                ),
+        ),
+      ),
       title: Text(
         event.title.isEmpty ? event.videoId : event.title,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
-        _relativeTime(context, event.startedAt),
+        subtitleParts.join(' • '),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: const TextStyle(fontSize: 11, color: Colors.black54),
       ),
       trailing: canResume
