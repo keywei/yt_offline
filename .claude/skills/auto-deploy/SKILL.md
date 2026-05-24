@@ -56,7 +56,7 @@ Each Bash call must prepend `export PATH="$HOME/development/flutter/bin:$PATH" &
    ```
    Wait for `✓ Built` (success) or any failure line (bail with the error).
 
-8. **Install.** `flutter install -d <device-id>`.
+8. **Install.** `xcrun devicectl device install app --device <device-id> build/ios/iphoneos/Runner.app`. Do NOT use `flutter install` — its wrapper does `Uninstalling old version` first, which wipes the iOS app sandbox (Documents/) and deletes every downloaded video. devicectl on its own does an update-install when bundle ID + signing identity match, so `Documents/videos/` is preserved.
 
 9. **Verify.** `xcrun devicectl device info apps --device <device-id> | grep ytoffline`. Report the new short-SHA (`git rev-parse --short HEAD`) and exit.
 
