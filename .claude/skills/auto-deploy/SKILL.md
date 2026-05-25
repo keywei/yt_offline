@@ -45,6 +45,27 @@ Each Bash call must prepend `export PATH="$HOME/development/flutter/bin:$PATH" &
 
 6. **Refresh deps if needed.** If step 4 flagged pubspec, run `flutter pub get`.
 
+6b. **Force a fresh signing profile.** This is a free Apple account — provisioning
+   profiles expire after 7 days. Delete the cached yt_offline profile so the
+   build re-signs with a fresh 7-day one (resets the expiry clock every deploy):
+   ```
+   DIR="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+   for f in "$DIR"/*.mobileprovision; do
+     [ -e "$f" ] || continue
+     security cms -D -i "$f" 2>/dev/null > /tmp/_pp.plist || continue
+     id=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' /tmp/_pp.plist 2>/dev/null)
+     case "$id" in *ytoffline*) rm -f "$f";; esac
+   done
+   ```
+   `flutter build` passes `-allowProvisioningUpdates`, so the next build
+   regenerates the profile via Apple automatically. If the build later fails
+   with a signing/provisioning error (Apple service unreachable or rate-limited),
+   report `build failed: <signing error>` — don't retry in a tight loop.
+
+   Note: this only keeps the app alive if a build actually happens within each
+   7-day window. Since the loop only builds on new commits, a quiet week still
+   lets the profile lapse — tell the user if they go >5 days with no deploy.
+
 7. **Build.** Kick off the build in the background and stream the log:
    ```
    flutter build ios --release > /tmp/flutter_build.log 2>&1
