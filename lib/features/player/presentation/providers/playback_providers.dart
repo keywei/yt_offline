@@ -550,6 +550,16 @@ class PlaybackController extends Notifier<PlaybackState> {
       state = state.copyWith(sleepAtEndOfTrack: false);
       return;
     }
+    // Single-track repeat: rewind in place instead of re-opening. Calling
+    // player.open() on the same path while mpv is at eof doesn't reliably
+    // reset the completed flag, so the next eof event would silently no-op
+    // and the loop stops after one iteration.
+    if (state.loop == LoopMode.one && state.hasCurrent) {
+      unawaited(
+        player.seek(Duration.zero).then((_) => player.play()),
+      );
+      return;
+    }
     final n = _pickNext();
     if (n == null) return;
     state = state.copyWith(index: n);
