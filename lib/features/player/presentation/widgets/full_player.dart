@@ -125,9 +125,21 @@ class _PortraitLayout extends StatelessWidget {
             if (current != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  '${S.of(context).displayCategory(current.category)} • ${state.index + 1} / ${state.queue.length}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '${S.of(context).displayCategory(current.category)} • ${state.index + 1} / ${state.queue.length}',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                    ),
+                    if (state.loop != LoopMode.off) ...[
+                      const SizedBox(width: 8),
+                      _LoopBadge(loop: state.loop),
+                    ],
+                  ],
                 ),
               ),
             AspectRatio(
@@ -779,6 +791,44 @@ class _TopBar extends StatelessWidget {
   }
 }
 
+/// Small amber pill that surfaces the active loop mode next to the
+/// category/index line. Only mounted when [loop] is not `off`.
+class _LoopBadge extends StatelessWidget {
+  final LoopMode loop;
+  const _LoopBadge({required this.loop});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: Colors.amber.withValues(alpha: 0.18),
+        border: Border.all(color: Colors.amber, width: 0.5),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            loop == LoopMode.one ? Icons.repeat_one : Icons.repeat,
+            color: Colors.amber,
+            size: 12,
+          ),
+          const SizedBox(width: 3),
+          Text(
+            S.of(context).loopMode(loop.name),
+            style: const TextStyle(
+              color: Colors.amber,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _Scrubber extends StatelessWidget {
   final PlaybackState state;
   final PlaybackController controller;
@@ -925,8 +975,11 @@ class _Controls extends StatelessWidget {
                 icon: Icon(
                   switch (state.loop) {
                     LoopMode.off => Icons.repeat,
-                    LoopMode.all => Icons.repeat_on,
-                    LoopMode.one => Icons.repeat_one_on,
+                    LoopMode.all => Icons.repeat,
+                    // Distinct "1" badge so single-track repeat is obvious at
+                    // a glance, not just a fill/colour variant of the all-loop
+                    // icon.
+                    LoopMode.one => Icons.repeat_one,
                   },
                   color: state.loop == LoopMode.off
                       ? Colors.white70
