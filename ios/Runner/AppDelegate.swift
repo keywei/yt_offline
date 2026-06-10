@@ -1,6 +1,5 @@
 import AVFoundation
 import Flutter
-import Security
 import UIKit
 
 @main
@@ -99,9 +98,11 @@ import UIKit
   // MARK: - Provisioning profile inspection
 
   /// Reads `embedded.mobileprovision` (every signed .app ships one) and
-  /// returns its ExpirationDate as an ISO-8601 string. The profile is a
-  /// PKCS#7 signed blob wrapping a plist, so we use CMSDecoder to extract
-  /// the payload before parsing.
+  /// returns its ExpirationDate as an ISO-8601 string. The file is a PKCS#7
+  /// signed blob, but the payload between `<?xml ...?>` and `</plist>` is a
+  /// plain ASCII plist — we just slice it out and parse it. iOS doesn't
+  /// expose CMSDecoder (that's macOS-only), so byte scanning is the
+  /// pragmatic path and avoids pulling in OpenSSL just to read a date.
   private func handleProfileCall(
     _ call: FlutterMethodCall,
     result: @escaping FlutterResult
@@ -125,30 +126,20 @@ import UIKit
         forResource: "embedded",
         ofType: "mobileprovision"
       ),
-      let data = try? Data(contentsOf: URL(fileURLWithPath: path))
+      let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+      let startMarker = "<?xml".data(using: .utf8),
+      let endMarker = "</plist>".data(using: .utf8),
+      let startRange = data.range(of: startMarker),
+      let endRange = data.range(
+        of: endMarker,
+        options: [],
+        in: startRange.lowerBound..<data.count
+      )
     else {
       return nil
     }
 
-    var decoder: CMSDecoder?
-    guard CMSDecoderCreate(&decoder) == errSecSuccess, let d = decoder else {
-      return nil
-    }
-    let updateStatus = data.withUnsafeBytes { bytes -> OSStatus in
-      guard let base = bytes.baseAddress else { return errSecParam }
-      return CMSDecoderUpdateMessage(d, base, data.count)
-    }
-    guard updateStatus == errSecSuccess else { return nil }
-    guard CMSDecoderFinalizeMessage(d) == errSecSuccess else { return nil }
-
-    var contentRef: CFData?
-    guard
-      CMSDecoderCopyContent(d, &contentRef) == errSecSuccess,
-      let plistData = contentRef as Data?
-    else {
-      return nil
-    }
-
+    let plistData = data.subdata(in: startRange.lowerBound..<endRange.upperBound)
     guard
       let plist = try? PropertyListSerialization.propertyList(
         from: plistData,
