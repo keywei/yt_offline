@@ -153,6 +153,20 @@ class S {
   // ---- Settings ----
   String get version => _pick('Version', '版本');
   String get source => _pick('Source', '原始碼');
+  String get signingProfile =>
+      _pick('Signing profile', '簽名 Profile');
+  String get signingProfileExpired =>
+      _pick('Expired — rebuild to renew', '已過期 — 重新打包以續期');
+  String signingProfileExpiresIn(int days, int hours) {
+    if (_zh) {
+      if (days <= 0) return '$hours 小時內到期';
+      return '$days 天 $hours 小時後到期';
+    }
+    if (days <= 0) {
+      return 'Expires in ${hours}h';
+    }
+    return 'Expires in ${days}d ${hours}h';
+  }
   String get language => _pick('Language', '語言');
   String get theme => _pick('Theme', '主題');
   String get themeLight => _pick('Light', '亮色');

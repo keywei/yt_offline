@@ -1,5 +1,6 @@
 import AVFoundation
 import Flutter
+import Security
 import UIKit
 
 @main
@@ -13,6 +14,9 @@ import UIKit
   /// path doesn't apply. We answer the same channel but report
   /// `isSupported = false` and ignore `enter`.
   private static let pipChannelName = "yt_offline/pip"
+  /// Reads the embedded provisioning profile's expiry so the Settings
+  /// screen can warn the user before signing dies.
+  private static let profileChannelName = "yt_offline/profile"
 
   /// URL captured from `application(_:open:)` before the engine attached.
   /// Cleared on `getInitial`.
@@ -82,6 +86,79 @@ import UIKit
       default: result(FlutterMethodNotImplemented)
       }
     }
+
+    let profile = FlutterMethodChannel(
+      name: AppDelegate.profileChannelName,
+      binaryMessenger: engineBridge.applicationRegistrar.messenger()
+    )
+    profile.setMethodCallHandler { [weak self] call, result in
+      self?.handleProfileCall(call, result: result)
+    }
+  }
+
+  // MARK: - Provisioning profile inspection
+
+  /// Reads `embedded.mobileprovision` (every signed .app ships one) and
+  /// returns its ExpirationDate as an ISO-8601 string. The profile is a
+  /// PKCS#7 signed blob wrapping a plist, so we use CMSDecoder to extract
+  /// the payload before parsing.
+  private func handleProfileCall(
+    _ call: FlutterMethodCall,
+    result: @escaping FlutterResult
+  ) {
+    guard call.method == "expiry" else {
+      result(FlutterMethodNotImplemented)
+      return
+    }
+    guard let date = readEmbeddedProfileExpiry() else {
+      result(nil)
+      return
+    }
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime]
+    result(formatter.string(from: date))
+  }
+
+  private func readEmbeddedProfileExpiry() -> Date? {
+    guard
+      let path = Bundle.main.path(
+        forResource: "embedded",
+        ofType: "mobileprovision"
+      ),
+      let data = try? Data(contentsOf: URL(fileURLWithPath: path))
+    else {
+      return nil
+    }
+
+    var decoder: CMSDecoder?
+    guard CMSDecoderCreate(&decoder) == errSecSuccess, let d = decoder else {
+      return nil
+    }
+    let updateStatus = data.withUnsafeBytes { bytes -> OSStatus in
+      guard let base = bytes.baseAddress else { return errSecParam }
+      return CMSDecoderUpdateMessage(d, base, data.count)
+    }
+    guard updateStatus == errSecSuccess else { return nil }
+    guard CMSDecoderFinalizeMessage(d) == errSecSuccess else { return nil }
+
+    var contentRef: CFData?
+    guard
+      CMSDecoderCopyContent(d, &contentRef) == errSecSuccess,
+      let plistData = contentRef as Data?
+    else {
+      return nil
+    }
+
+    guard
+      let plist = try? PropertyListSerialization.propertyList(
+        from: plistData,
+        options: [],
+        format: nil
+      ) as? [String: Any]
+    else {
+      return nil
+    }
+    return plist["ExpirationDate"] as? Date
   }
 
   // MARK: - Orientation forcing

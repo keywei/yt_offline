@@ -7,6 +7,7 @@ import '../../../../core/i18n/settings_providers.dart';
 import '../../../../core/i18n/strings.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/storage/preferences_store.dart';
+import '../providers/profile_info_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -74,6 +75,7 @@ class SettingsScreen extends ConsumerWidget {
             title: Text(s.source),
             subtitle: const Text('github.com/keywei/yt_offline'),
           ),
+          _ProfileExpiryTile(s: s),
         ],
       ),
     );
@@ -86,6 +88,55 @@ class SettingsScreen extends ConsumerWidget {
           style: Theme.of(context).textTheme.labelLarge,
         ),
       );
+}
+
+/// iOS-only signing-profile expiry indicator. Hidden on Android (the
+/// provider returns null). Goes amber under 2 days and red once expired.
+class _ProfileExpiryTile extends ConsumerWidget {
+  final S s;
+  const _ProfileExpiryTile({required this.s});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(profileInfoProvider);
+    final info = async.valueOrNull;
+    if (info == null) return const SizedBox.shrink();
+
+    final remaining = info.timeUntilExpiry;
+    final expired = info.isExpired;
+    final color = expired
+        ? Colors.red
+        : (remaining < const Duration(days: 2)
+            ? Colors.amber
+            : null);
+
+    final String subtitle;
+    if (expired) {
+      subtitle = '${_fmtDateTime(info.expiresAt)} · ${s.signingProfileExpired}';
+    } else {
+      final hours = remaining.inHours.remainder(24);
+      subtitle =
+          '${_fmtDateTime(info.expiresAt)} · ${s.signingProfileExpiresIn(remaining.inDays, hours)}';
+    }
+
+    return ListTile(
+      leading: Icon(
+        expired ? Icons.error_outline : Icons.verified_user_outlined,
+        color: color,
+      ),
+      title: Text(s.signingProfile),
+      subtitle: Text(
+        subtitle,
+        style: color == null ? null : TextStyle(color: color),
+      ),
+    );
+  }
+
+  String _fmtDateTime(DateTime t) {
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${t.year}-${two(t.month)}-${two(t.day)} '
+        '${two(t.hour)}:${two(t.minute)}';
+  }
 }
 
 class _ThemeTile extends ConsumerWidget {
