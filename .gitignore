@@ -12,8 +12,11 @@
 .swiftpm/
 migrate_working_dir/
 
-# Claude Code harness state (skills/ is tracked; runtime artifacts aren't)
-.claude/scheduled_tasks*
+# Claude Code harness state and local skills
+.claude/
+
+# Internal handover and teaching documentation
+HANDOVER.md
 
 # IntelliJ related
 *.iml
@@ -24,7 +27,7 @@ migrate_working_dir/
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
 # is commented out by default.
-#.vscode/
+.vscode/
 
 # Flutter/Dart/Pub related
 **/doc/api/
