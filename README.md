@@ -1,413 +1,151 @@
 # yt_offline
 
-A Flutter app that searches YouTube, downloads videos with subtitles,
-and plays them back offline organised by user-defined categories. Designed
-for Android (works on API 21+, tested on 7.1.1). The codebase is structured
-as a textbook example of **Clean Architecture + Riverpod** on Flutter.
+<p align="center">
+  <img src="assets/icon.png" width="96" height="96" alt="yt_offline logo" />
+</p>
 
-> **Legal note** — this project bypasses the YouTube Data API by extracting
-> stream URLs directly. That violates YouTube's Terms of Service, and Apple
-> App Store / Google Play **will reject it**. Ship to internal users only:
-> APK side-load, TestFlight, or a private MDM.
+<p align="center">
+  <strong>專為離線情境打造的 YouTube 影音下載與智慧播放器</strong><br>
+  支援外掛字幕、背景鎖屏播放、A-B 段落循環、分類拖曳管理與手勢操作
+</p>
 
----
-
-## Features
-
-- Search YouTube with paginated results (auto-loads more on scroll)
-- Per-video category chosen at download time
-- Subtitle extraction → bundled SRT next to the video
-- Resumable / pausable / cancellable downloads via `background_downloader`
-- "In progress" tray in Library with Pause / Resume / Cancel / Retry / Dismiss
-- Library grouped by category, collapsible sections
-- Drag tile to reorder within a category
-- Drag tile onto a category header to move it
-- Long-press to enter multi-select → batch move to another category
-- Swipe a tile left → red background reveals delete icon
-- Add / rename / delete categories (delete reroutes contents to Uncategorized)
-- Search history with fuzzy filter; appears only while the search box is focused
-- Single + global delete on history entries
-- Skip-on-duplicate: tapping an already-downloaded video shows a SnackBar,
-  no redundant fetch
-- Global mini player bar above the bottom nav
-- Full player screen with queue, loop (off / one / all), shuffle, scrubber
-- Real background audio playback via foreground service (`flutter_background`)
-- Animated equalizer indicator on the currently-playing Library tile
+<p align="center">
+  <img src="https://img.shields.io/badge/Flutter-3.41-02569B?logo=flutter" alt="Flutter" />
+  <img src="https://img.shields.io/badge/Dart-3.11-0175C2?logo=dart" alt="Dart" />
+  <img src="https://img.shields.io/badge/Architecture-Clean%20Architecture-green" alt="Clean Architecture" />
+  <img src="https://img.shields.io/badge/State-Riverpod%202.6-blue" alt="Riverpod" />
+  <img src="https://img.shields.io/badge/Platform-Android%20%7C%20iOS-orange" alt="Platform" />
+  <img src="https://img.shields.io/badge/License-MIT-purple" alt="License" />
+</p>
 
 ---
 
-## Tech stack
+## 📱 使用畫面 (Screenshots)
 
-| Concern | Choice | Why |
+| 搜尋主畫面 | 關鍵字輸入搜尋 | 桌面 App 圖示 |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/search_main.png" width="250" alt="搜尋主畫面" /> | <img src="docs/screenshots/search_input.png" width="250" alt="關鍵字輸入搜尋" /> | <img src="docs/screenshots/app_launcher.png" width="250" alt="桌面應用圖示" /> |
+| 清爽直覺的 Material 3 搜尋介面 | 支援即時建議與搜尋歷史記錄 | 專屬設計的高質感 Neon 音符圖示 |
+
+---
+
+## 💡 專案簡介
+
+**yt_offline** 是一款以 Flutter 開發的跨平台行動應用程式。專為通勤族、語言學習者、音樂愛好者以及常在無網路或弱網環境（如搭乘飛機、高鐵）的使用者所設計。
+
+透過本應用程式，您可以輕鬆搜尋 YouTube 內容、下載影片與對應字幕，並在離線環境下享有如專業影音播放器般的順暢體驗。
+
+---
+
+## ✨ 核心功能特色
+
+### 🔍 智慧搜尋與外部分享
+* **無縫瀏覽**：支援關鍵字搜尋與無限滾動分頁載入。
+* **進階篩選**：可依照相關度、上傳日期、觀看次數或影片時長進行精確篩選。
+* **搜尋記錄**：自動記錄熱門搜尋詞，支援模糊比對與單筆/全域清除。
+* **外部分享導入**：可直接從 YouTube 或其他瀏覽器將影片連結分享至本 App 快速解析。
+
+### ⚡ 穩定下載與字幕整合
+* **背景斷點續傳**：採用高效背景下載機制，支援暫停、繼續、取消與失敗重試。
+* **字幕自動提取**：下載影片時自動擷取中/英字幕，儲存為獨立 `.srt` 檔案，離線時可任意切換。
+* **防重複機制**：點擊已下載影片時主動提醒，避免耗費流量與儲存空間。
+
+### 📂 媒體庫與分類管理
+* **自訂分類**：建立個人專屬類別（如「聽力練習」、「音樂」、「教學影片」），可折疊收合。
+* **直覺拖曳排序**：
+  * 長按卡片可自由調整同一分類內的播放順序。
+  * 將卡片直接拖放至分類標題，即可快速跨分類移動。
+* **批次管理與滑動操作**：支援長按多選批次移動，以及向左滑動快速刪除。
+* **動態指示**：正在播放的影片卡片上會呈現活潑的等化器跳動效果。
+
+### 🎧 極致影音播放體驗
+* **背景純音訊播放**：支援鎖定螢幕與切換應用程式持續播放，無縫聆聽不中斷。
+* **系統級媒體控制**：整合系統通知列、鎖屏控制器、耳機線控按鍵操作。
+* **全域迷你播放列 (Mini Player)**：切換到任何頁面都能保持底層播放與快速切換控制。
+* **A-B 段落循環**：自由設定 A、B 兩點，重複循環精華片段（語言學習、樂器抓歌必備）。
+* **全螢幕橫向手勢控制**：
+  * 左半部垂直滑動：調節螢幕亮度
+  * 右半部垂直滑動：調節音量大小
+  * 水平滑動：精準快轉 / 倒轉進度
+* **畫中畫模式 (PiP)**：一邊觀看影片，一邊回覆訊息或操作其他軟體。
+* **客製化外掛字幕**：隨時開啟/關閉字幕，並可自訂字型大小、顏色與背景透明度。
+* **進階控制**：支援 0.5x ~ 2.0x 播放速度調節與睡眠定時關閉 (Sleep Timer)。
+
+### ⚙️ 系統設定與空間管理
+* **觀看歷史 (Watch History)**：記錄近期的觀看軌跡，隨時接續收看。
+* **儲存空間分析**：直觀顯示已下載影音佔用的容量，並提供一鍵清理已觀看項目的智慧維護。
+
+---
+
+## 🏗️ 架構與技術棧
+
+本專案嚴格遵循 **Clean Architecture（簡潔架構）** 原則，搭配 **Feature-First** 目錄結構，確保各模組高內聚、低耦合且易於擴展。
+
+```
+lib/
+├── core/                       # 全域共享基礎建設 (Router, Storage, Theme, Errors)
+└── features/
+    ├── search/                 # 搜尋模組 (Data / Domain / Presentation)
+    ├── download/               # 下載管理模組 (背景傳輸隊列、字幕提取)
+    ├── library/                # 媒體庫模組 (分類管理、拖曳排序、空間管理)
+    ├── player/                 # 播放器模組 (MediaKit、背景音訊服務、手勢控制)
+    └── settings/               # 設定模組 (字幕樣式、觀看歷史、儲存清理)
+```
+
+### 主要技術選型
+
+| 領域 | 使用套件 / 技術 | 說明 |
 |---|---|---|
-| Framework | Flutter 3.41.x, Dart 3.11.x | One codebase, native UI |
-| State + DI | `flutter_riverpod` 2.6 (no codegen) | DI = providers; no `get_it` |
-| Routing | `go_router` 14 + `StatefulShellRoute.indexedStack` | Tabs that survive navigation |
-| YouTube | `youtube_explode_dart` 2.5 | Search + stream manifest + captions |
-| HTTP | `dio` 5 | Future use; not in hot paths |
-| Downloads | `background_downloader` 8 | Resumable, queueable, background-safe |
-| Player | `media_kit` 1 + `media_kit_video` 1 + `media_kit_libs_video` 1 | MPV under the hood; external subtitles |
-| Background audio | `flutter_background` 1 | Foreground service to defeat Android process kill |
-| Wakelock | `wakelock_plus` 1 | Hold CPU while playing |
-| Filesystem | `path_provider` + `path` | App docs dir for all media |
-| Misc | `intl`, `collection` | — |
-
-**No code generation.** `freezed` / `riverpod_generator` / `json_serializable`
-were deliberately removed after we hit
-[analyzer 7.6 visitDotShorthandInvocation bug](https://github.com/dart-lang/sdk/issues)
-on Dart 3.11. All value classes are hand-rolled with explicit `copyWith`,
-`==`, `hashCode`. This trades ~100 lines of boilerplate for zero build_runner
-runs and immunity to future analyzer/freezed version skew.
+| **核心框架** | Flutter 3.41+ / Dart 3.11+ | 跨平台原生渲染體驗 |
+| **狀態管理** | `flutter_riverpod` (2.6) | 聲明式狀態管理與依賴注入，無代碼生成器相依 |
+| **頁面路由** | `go_router` (14.x) | 宣告式路由與 `StatefulShellRoute` 保持導覽狀態 |
+| **影音核心** | `media_kit` (MPV 核心) | 高效硬體解碼與多軌字幕掛載 |
+| **背景傳輸** | `background_downloader` | 可靠的背景隊列斷點續傳 |
+| **系統媒體服務** | `audio_service` | 整合系統鎖屏控制器與背景持久執行 |
+| **手勢與硬體** | `screen_brightness`, `flutter_volume_controller` | 原生級橫向亮度與音量平滑調整 |
 
 ---
 
-## Architecture
+## 🚀 快速開始
 
-Clean Architecture with a **feature-first** folder layout. The dependency
-rule is one-way: **Presentation → Domain ← Data**. Domain is pure Dart with
-no Flutter/3rd-party imports.
+### 環境需求
+* [Flutter SDK](https://docs.flutter.dev/get-started/install) 3.41.x 或相容版本
+* [Android Studio](https://developer.android.com/studio) / Xcode（若需建置 iOS）
+* Android 實機或模擬器（建議 Android 7.0 / API 24 以上）
 
-```
-                    +-----------------+
-                    |  Presentation   |   widgets, screens, Riverpod
-                    |   (Flutter UI)  |   providers, state classes
-                    +--------+--------+
-                             | depends on
-                             v
-                    +-----------------+
-                    |     Domain      |   entities, repository INTERFACES,
-                    |   (pure Dart)   |   use cases, Result/Failure
-                    +-----------------+
-                             ^ implements
-                             |
-                    +--------+--------+
-                    |      Data       |   datasources, repository IMPLS,
-                    | (3rd-party SDKs)|   DTO mappers, storage adapters
-                    +-----------------+
-```
+### 安裝與啟動
 
-### Feature inventory
-
-Each feature lives under `lib/features/<name>/` with its own `data/`,
-`domain/`, `presentation/`:
-
-| Feature | Responsibility |
-|---|---|
-| `search` | Query YouTube, paginate, search history |
-| `download` | Resolve streams + captions, manage the BG queue, surface jobs |
-| `library` | List downloaded videos, CRUD categories, reorder, move |
-| `player` | Global playback controller, mini player, full player screen |
-
-Cross-feature infrastructure lives in `lib/core/`:
-
-| Folder | Purpose |
-|---|---|
-| `core/errors/failure.dart` | `sealed class Failure` hierarchy (NetworkFailure, AlreadyDownloadedFailure, etc.) |
-| `core/result/result.dart` | `sealed class Result<T>` = `Ok<T>` \| `Err<T>` |
-| `core/storage/` | `MediaStorage`, `VideoMetadataStore`, `CategoryStore` — shared persistence |
-| `core/router/` | `go_router` config; `StatefulShellRoute` for Search/Library tabs |
-| `core/shell/main_shell.dart` | Bottom nav + mini player bar |
-
----
-
-## Key design patterns
-
-### `Result<T>` instead of exceptions across layer boundaries
-
-Repositories return `Future<Result<T>>` so callers handle failure
-at the type level. The `Result.when` helper does the pattern match:
-
-```dart
-final result = await repo.search(query);
-state = result.when(
-  ok: (page) => SearchLoaded(videos: page.items, hasMore: page.hasMore),
-  err: (f) => SearchError(f.message),
-);
-```
-
-### Sealed unions for screen state
-
-Without freezed, state unions are written as:
-
-```dart
-sealed class SearchState { const SearchState(); }
-class SearchInitial extends SearchState { const SearchInitial(); }
-class SearchLoading extends SearchState { const SearchLoading(); }
-class SearchLoaded extends SearchState {
-  final List<VideoSummary> videos;
-  final bool hasMore;
-  final bool loadingMore;
-  // + copyWith
-}
-class SearchError extends SearchState {
-  final String message;
-  const SearchError(this.message);
-}
-```
-
-Dart 3 `switch` expressions exhaustively match sealed subtypes.
-
-### Repository owns the cursor
-
-`SearchRepositoryImpl` keeps the `VideoSearchList` from
-`youtube_explode_dart` as an internal cursor. The domain layer only sees a
-`VideoPage(items, hasMore)`. UI never knows pagination is cursor-based.
-
-### Two-phase download with synthetic job IDs
-
-`enqueue()` is split:
-
-- **Phase A** (resolve stream + captions): synchronous insert into the
-  jobs map with a synthetic `prep:<videoId>:<ts>` key so the UI can show
-  a "preparing" entry with a Cancel button.
-- **Phase B** (hand off to `background_downloader`): on success, re-key
-  the job to the real `taskId` returned by the BG plugin. Status updates
-  from the BG stream find the right job by `taskId`.
-
-The repo also tracks `_cancelRequested: Set<String>` — Cancel during
-Phase A flags the prep id; we check the flag after `_stream.resolve()`
-returns and abort before enqueueing the BG task.
-
-### Single global `PlaybackController`
-
-`playbackControllerProvider` is a `NotifierProvider` at the root scope.
-The `Player` lives inside it; navigating away from the player screen does
-not dispose it. The mini player widget watches the same provider, so it
-appears across tabs whenever `state.current != null`.
-
-### Drag-and-drop reordering / recategorizing
-
-Each Library tile is wrapped twice:
-
-- Inside: `Dismissible` (swipe left → delete)
-- Middle: `LongPressDraggable<VideoMetadata>` (long-press lift)
-- Outside: `DragTarget<VideoMetadata>` (other tiles drop here → insert above)
-
-Section headers are `DragTarget<VideoMetadata>` — drop a tile on a header
-to append to that category. Reordering writes a per-category `position`
-field on `VideoMetadata` and rewrites the affected files.
-
----
-
-## Project structure
-
-```
-yt_offline/
-├── android/                # Flutter Android shell + manifest
-├── ios/                    # untested
-├── lib/
-│   ├── main.dart           # ProviderScope + MediaKit.ensureInitialized
-│   ├── app.dart            # MaterialApp.router + initializer gate
-│   ├── core/
-│   │   ├── errors/failure.dart
-│   │   ├── result/result.dart
-│   │   ├── router/app_router.dart
-│   │   ├── shell/main_shell.dart
-│   │   └── storage/
-│   │       ├── media_storage.dart      # paths under app docs dir
-│   │       ├── video_metadata.dart     # DTO + toJson/fromJson + copyWith
-│   │       ├── video_metadata_store.dart
-│   │       └── category_store.dart
-│   └── features/
-│       ├── search/
-│       │   ├── data/
-│       │   │   ├── datasources/
-│       │   │   │   ├── youtube_search_remote_datasource.dart  # cursor
-│       │   │   │   └── search_history_store.dart
-│       │   │   ├── mappers/video_summary_mapper.dart
-│       │   │   └── repositories/search_repository_impl.dart
-│       │   ├── domain/
-│       │   │   ├── entities/video_summary.dart, video_page.dart
-│       │   │   ├── repositories/search_repository.dart
-│       │   │   └── usecases/search_videos.dart, load_more_videos.dart
-│       │   └── presentation/
-│       │       ├── providers/   # search_providers, search_history_provider
-│       │       ├── screens/search_screen.dart
-│       │       ├── state/search_state.dart
-│       │       └── widgets/     # VideoCard, CategoryPickerSheet
-│       ├── download/
-│       │   ├── data/datasources/youtube_stream_datasource.dart         # stream URL + SRT
-│       │   ├── data/datasources/background_download_datasource.dart    # FileDownloader wrap
-│       │   ├── data/repositories/download_repository_impl.dart
-│       │   ├── domain/entities/download_status.dart, download_job.dart
-│       │   ├── domain/repositories/download_repository.dart
-│       │   ├── domain/usecases/download_video.dart
-│       │   └── presentation/providers/download_providers.dart
-│       ├── library/
-│       │   ├── data/repositories/library_repository_impl.dart
-│       │   ├── domain/repositories/library_repository.dart
-│       │   └── presentation/
-│       │       ├── providers/library_providers.dart
-│       │       ├── screens/library_screen.dart      # the big one
-│       │       └── widgets/
-│       │           ├── downloaded_video_tile.dart
-│       │           └── equalizer_indicator.dart
-│       └── player/
-│           └── presentation/
-│               ├── providers/playback_providers.dart   # PlaybackController + bg service
-│               ├── screens/player_screen.dart
-│               ├── state/playback_state.dart           # LoopMode, queue, etc
-│               └── widgets/mini_player_bar.dart
-├── test/
-│   ├── search_integration_test.dart    # hits real YouTube
-│   └── widget_test.dart
-├── analysis_options.yaml   # strict-casts/strict-inference/strict-raw-types
-└── pubspec.yaml
-```
-
-### On-disk layout (Android: `getApplicationDocumentsDirectory()`)
-
-```
-<documents>/
-├── videos/
-│   ├── <videoId>.mp4
-│   ├── <videoId>.srt      # optional, English-preferred
-│   └── <videoId>.json     # VideoMetadata
-├── categories.json        # user-created empty categories
-└── search_history.json    # max 50 entries, MRU
-```
-
----
-
-## Setup
-
-### Prerequisites
-
-- Flutter 3.41.x stable
-- Android SDK + a connected Android device (or emulator) for testing
-- Optional: Visual Studio Build Tools for Windows desktop runs
-
-### One-time environment fixes (Windows + corporate networks)
-
-These are non-obvious and bit us hard early in development. **Apply both
-if you're behind an SSL inspection proxy** (Zscaler, McAfee Web Gateway,
-etc.):
-
-1. **Gradle → Windows certificate store**. Already done in this repo:
-   `android/gradle.properties` contains
-   `-Djavax.net.ssl.trustStoreType=Windows-ROOT`.
-
-2. **Git → Windows certificate store** (run once globally):
-   ```sh
-   git config --global http.sslBackend schannel
+1. **複製專案庫**
+   ```bash
+   git clone https://github.com/keywei/yt_offline.git
+   cd yt_offline
    ```
 
-3. **Don't put the project under `C:\…\AI talk\` or any path with a
-   space**. Flutter / Gradle / sub-processes mostly handle spaces, but
-   PowerShell quoting around the path causes intermittent denials in
-   automation. The project is happy at `D:\yt_offline`.
+2. **安裝專案依賴**
+   ```bash
+   flutter pub get
+   ```
 
-### Install dependencies
+3. **靜態程式碼檢查**
+   ```bash
+   flutter analyze
+   ```
 
-```sh
-cd D:\yt_offline
-flutter pub get
+4. **連接裝置並啟動**
+   ```bash
+   flutter run
+   ```
+
+### 建置安裝檔 (Android APK)
+```bash
+flutter build apk --release
 ```
-
-### Run on a device
-
-```sh
-flutter devices                          # confirm your device is listed
-flutter run -d <id>                      # attached run with hot reload
-
-# Or build + side-load
-flutter build apk --debug
-flutter install --debug -d <id>
-adb -s <id> shell am start -n com.example.ytoffline.yt_offline/.MainActivity
-```
-
-First Android build takes 2–10 min (Gradle + native libs). Subsequent
-builds are 10–20 s.
-
-### Verify without a device
-
-```sh
-flutter analyze                          # zero issues expected
-flutter test test/search_integration_test.dart   # hits real YouTube
-```
+建置完成後，APK 將輸出於 `build/app/outputs/flutter-apk/app-release.apk`。
 
 ---
 
-## Known issues + gotchas
+## ⚠️ 免責聲明 (Disclaimer)
 
-These caused real-world failures during development. Read them before
-debugging similar symptoms.
-
-### `flutter_background` doesn't declare its own service
-
-The plugin ships `IsolateHolderService` in Kotlin but its
-`AndroidManifest.xml` only declares permissions, **not** the `<service>`.
-We added it manually in
-[`android/app/src/main/AndroidManifest.xml`](android/app/src/main/AndroidManifest.xml).
-Without that declaration, `startForegroundService` is a silent no-op and
-audio dies the moment the app goes to background.
-
-### `media_kit_video` auto-pauses on activity lifecycle
-
-The `Video` widget has `pauseUponEnteringBackgroundMode: true` by default
-and calls `player.pause()` on `AppLifecycleState.paused`. The fix is in
-[`player_screen.dart`](lib/features/player/presentation/screens/player_screen.dart):
-explicitly pass `false`.
-
-### Notification small icon must be `drawable/`, not `mipmap/`
-
-Android silently hides notification icons that aren't white-on-transparent.
-Use [`res/drawable/ic_notification.xml`](android/app/src/main/res/drawable/ic_notification.xml),
-not `mipmap/ic_launcher`.
-
-### Oppo / ColorOS still kills background even with foreground service
-
-`dumpsys activity services` showed `isForeground=true` with a notification
-attached, yet audio stopped. The fix is in **device settings**: Battery →
-App battery management → app → allow background activity. See
-[dontkillmyapp.com/oppo](https://dontkillmyapp.com/oppo) for the per-OEM
-matrix.
-
-### `youtube_explode_dart` may break overnight
-
-YouTube's internal API is the surface this library calls. When it changes
-shape (often during YouTube experiments), search or stream resolution can
-return wrong types or fail. Bump `youtube_explode_dart` first; the
-integration test (`test/search_integration_test.dart`) is the canonical
-canary.
-
-### Adaptive streams are not muxed
-
-The download path only consumes `manifest.muxed` (max ~720p). Higher
-qualities live in separate `manifest.video` and `manifest.audio` streams,
-which need `ffmpeg` to combine. Combining client-side is out of scope.
-
-### Disk space
-
-A full Flutter build needs ~5–10 GB transient under `.dart_tool/` and
-`build/`. If you're under 5 GB free on the project drive, builds hang
-mid-write with cryptic file-handle errors. `flutter clean` reclaims
-most of it.
-
----
-
-## What's not done yet
-
-- iOS — never built / tested; manifest changes for background audio are
-  Android-only
-- Adaptive (>720p) downloads (needs on-device muxing)
-- Real MediaSession on the lock screen / media controls
-- Settings screen (quality preference, default category, etc.)
-- Tests beyond the search integration smoke test
-- Localization (Traditional Chinese strings would be a natural first add)
-- Sharing / export / import library metadata
-
----
-
-## Development notes
-
-- Strict lints are on: `analysis_options.yaml` enables `strict-casts`,
-  `strict-inference`, `strict-raw-types`, plus `require_trailing_commas`,
-  `prefer_single_quotes`, `avoid_print`, `unawaited_futures`.
-  Run `flutter analyze` before every commit — it should be clean.
-- The integration test in `test/search_integration_test.dart` hits real
-  YouTube. It catches `youtube_explode_dart` going stale.
-- No CI configured. If you add one, run `flutter analyze` + that
-  integration test as the bare minimum.
-- Commit style: subject in imperative present, body explains the *why*.
-  See `git log` for the established voice.
+* 本專案僅供個人學習、研究與軟體架構交流使用。
+* 軟體中影音內容之所有權與智慧財產權皆歸原創作者與 YouTube (Google LLC) 所有。
+* 請勿將本應用程式用於任何商業用途或侵犯他人版權之行為。
